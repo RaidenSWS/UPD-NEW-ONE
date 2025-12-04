@@ -1,5 +1,5 @@
 -- // RIDER WORLD SCRIPT // --
--- // VERSION: DETECT ITEM LIMIT MSG + ANTI-AFK + AUTO EQUIP // --
+-- // VERSION: AUTO 35-80 (MUMMY) + ALL FIXES // --
 
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
@@ -8,7 +8,7 @@ local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.
 -- // 1. WINDOW // --
 local Window = Fluent:CreateWindow({
     Title = "เสี่ยปาล์มขอเงินฟรี",
-    SubTitle = "Item Limit Detect",
+    SubTitle = "Auto Mummy 35-80 Added",
     TabWidth = 160,
     Size = UDim2.fromOffset(580, 460),
     Acrylic = true, 
@@ -222,17 +222,29 @@ task.spawn(function()
     end
 end)
 
--- Transform Text Detect
+-- // CLIENT NOTIFIER LISTENER // --
 CLIENT_NOTIFIER.OnClientEvent:Connect(function(Data)
     if _G.QuestingMode then return end
-    if _G.AutoForm and type(Data) == "table" and Data.Text then
-        if string.find(string.lower(Data.Text), "transform") then
+    if type(Data) == "table" and Data.Text then
+        local txt = string.lower(Data.Text)
+        
+        -- 1. TRANSFORM PAUSE
+        if _G.AutoForm and string.find(txt, "transform") then
             if not _G.IsTransforming then
                 _G.IsTransforming = true 
                 Fluent:Notify({Title = "AUTO FORM", Content = "Transforming... Pausing 5s", Duration = 5})
                 FireSkill("X")
                 task.wait(5) 
                 _G.IsTransforming = false 
+            end
+        end
+        
+        -- 2. STAMINA BUG RESET
+        if string.find(txt, "dont have enough stamina") or string.find(txt, "don't have enough stamina") then
+            Fluent:Notify({Title = "STAMINA BUG", Content = "Detected! Resetting Character...", Duration = 3})
+            local Char = LocalPlayer.Character
+            if Char and Char:FindFirstChild("Humanoid") then
+                Char.Humanoid.Health = 0
             end
         end
     end
@@ -249,14 +261,12 @@ task.spawn(function()
         if _G.AutoFarm then
             local Character = LocalPlayer.Character
             
-            -- EQUIP (White Icon -> Red Icon)
             if _G.AutoEquip and Character and Character:FindFirstChild("Humanoid") then
                 local Backpack = LocalPlayer.Backpack
                 local Tool = Backpack:FindFirstChildOfClass("Tool")
                 if Tool then Character.Humanoid:EquipTool(Tool) end
             end
             
-            -- HENSHIN (ONE TIME)
             if _G.AutoHenshin and not HenshinDoneForThisLife and Character then
                 if Character:FindFirstChild("PlayerHandler") then
                     task.wait(2) 
@@ -340,18 +350,14 @@ local function RunCraftingRoutine()
         DIALOGUE_EVENT:FireServer({Choice = "[ Craft ]"})
         task.wait(1)
         
-        -- // SMART SIGNAL LISTENER // --
         CraftStatusSignal = "IDLE"
         local Connection
         Connection = CRAFTING_EVENT.OnClientEvent:Connect(function(Data)
             if type(Data) == "table" and Data.Callback then
                 local msg = string.lower(Data.Callback)
                 
-                -- IF MSG CONTAINS "limit" or "unable" -> TREAT AS MAXED -> SKIP
                 if string.find(msg, "limit") or string.find(msg, "unable") or string.find(msg, "max") or string.find(msg, "full") then
                     CraftStatusSignal = "MAX"
-                    
-                -- ONLY if explicit "Not Enough" -> STOP
                 elseif string.find(msg, "not enough") and not string.find(msg, "limit") then
                     CraftStatusSignal = "EMPTY" 
                 end
@@ -382,15 +388,14 @@ local function RunCraftingRoutine()
                 
                 if CraftStatusSignal == "MAX" then
                     Fluent:Notify({Title = "Crafting", Content = ItemName .. " Limit Reached! Switching...", Duration = 2})
-                    ItemActive = false -- Break inner loop -> Next item
+                    ItemActive = false 
                     
                 elseif CraftStatusSignal == "EMPTY" then
                     Fluent:Notify({Title = "Crafting", Content = "Materials Empty! Returning...", Duration = 3})
                     ItemActive = false
-                    MustReturnToFarm = true -- Break ALL loops -> Return
+                    MustReturnToFarm = true 
                     
                 elseif ItemAttempt > 20 then
-                    -- Failsafe if signal isn't caught
                     Fluent:Notify({Title = "Skipping", Content = ItemName .. " (Timeout)", Duration = 2})
                     ItemActive = false 
                 end
@@ -635,6 +640,72 @@ local function Accept_Daguba_Quest()
     end
 end
 
+-- // WIND EXPERT (MUMMY) FUNCTIONS // --
+
+local function GetWindQuestStatus()
+    local PlayerGui = LocalPlayer:FindFirstChild("PlayerGui")
+    if PlayerGui then
+        local GUI = PlayerGui.Main.QuestAlertFrame.QuestGUI
+        -- Look for the Mummy quest frame
+        if GUI:FindFirstChild("Mummy Return?") and GUI["Mummy Return?"].Visible then
+            if string.find(GUI["Mummy Return?"].TextLabel.Text, "Completed") then
+                return "COMPLETED"
+            end
+            return "ACTIVE"
+        end
+    end
+    return "NONE"
+end
+
+local function Accept_Wind_Quest()
+    -- 1. Pause if Transforming
+    while _G.IsTransforming do task.wait(1) end
+
+    local NPC = Workspace:WaitForChild("NPC"):FindFirstChild("WindTourist")
+    if NPC then
+        local Root = NPC:FindFirstChild("HumanoidRootPart") or NPC:FindFirstChild("Torso")
+        if Root then
+            _G.QuestingMode = true
+            TweenTo(Root.CFrame * CFrame.new(0, 0, 3))
+            task.wait(0.2)
+            if not _G.AutoFarm then _G.QuestingMode = false; return end
+            
+            -- Click
+            local Clicker = NPC:FindFirstChild("ClickDetector")
+            if Clicker then fireclickdetector(Clicker) end
+            
+            task.wait(1) -- Wait for GUI
+            local Status = GetWindQuestStatus()
+            
+            if Status == "NONE" then
+                -- Accept New Quest
+                DIALOGUE_EVENT:FireServer({Choice = "Sure!"})
+                task.wait(0.5)
+                DIALOGUE_EVENT:FireServer({Choice = "Mummy Return?"})
+                task.wait(0.5)
+                DIALOGUE_EVENT:FireServer({Choice = "Start 'Mummy Return?'"})
+                task.wait(0.5)
+                DIALOGUE_EVENT:FireServer({Exit = true})
+                
+            elseif Status == "COMPLETED" then
+                -- Turn In
+                DIALOGUE_EVENT:FireServer({Choice = "Yes, I've completed it."})
+                task.wait(0.5)
+                DIALOGUE_EVENT:FireServer({Choice = "Can I get another quest?"})
+                task.wait(0.5)
+                DIALOGUE_EVENT:FireServer({Choice = "Mummy Return?"})
+                task.wait(0.5)
+                DIALOGUE_EVENT:FireServer({Choice = "Start 'Mummy Return?'"})
+                task.wait(0.5)
+                DIALOGUE_EVENT:FireServer({Exit = true})
+            end
+            
+            task.wait(1)
+            _G.QuestingMode = false
+        end
+    end
+end
+
 local function GetMinerGoonQuestStatus()
     local PlayerGui = LocalPlayer:FindFirstChild("PlayerGui")
     if PlayerGui then
@@ -834,7 +905,7 @@ local YuiSection = Tabs.Main:AddSection("YUI QUEST")
 
 local QuestDropdown = Tabs.Main:AddDropdown("QuestSelect", {
     Title = "Select Quest",
-    Values = {"YUI (Lv. 1-35)", "AGITO (Shoichi)", "Auto Miner Goon", "DAGUBA (Auto Dungeon)"},
+    Values = {"YUI (Lv. 1-35)", "Auto 35-80 (Mummy)", "AGITO (Shoichi)", "Auto Miner Goon", "DAGUBA (Auto Dungeon)"},
     Multi = false,
     Default = 1,
 })
@@ -871,6 +942,16 @@ FarmToggle:OnChanged(function()
                     if not _G.AutoFarm then break end
                     KillEnemy("Bat User Lv.12")
                     if _G.AutoQuest and _G.AutoFarm then WaitForQuestCompletion("Dragon's Alliance") end
+                
+                elseif QuestDropdown.Value == "Auto 35-80 (Mummy)" then
+                    local Status = GetWindQuestStatus()
+                    
+                    if Status == "COMPLETED" or Status == "NONE" then
+                        if _G.AutoQuest then Accept_Wind_Quest() end
+                    elseif Status == "ACTIVE" then
+                        if not _G.AutoFarm then break end
+                        KillEnemy("Mummy Lv.40")
+                    end
                 
                 elseif QuestDropdown.Value == "AGITO (Shoichi)" then
                     local AgitoStatus = Check_Agito_Quest_Active() 
@@ -1011,5 +1092,5 @@ InterfaceManager:BuildInterfaceSection(Tabs.Settings)
 SaveManager:BuildConfigSection(Tabs.Settings)
 
 Window:SelectTab(1)
-Fluent:Notify({Title = "Script Loaded", Content = "ANTI-AFK + AUTO SKIP", Duration = 5})
+Fluent:Notify({Title = "Script Loaded", Content = "AUTO 35-80 ADDED", Duration = 5})
 SaveManager:LoadAutoloadConfig()
