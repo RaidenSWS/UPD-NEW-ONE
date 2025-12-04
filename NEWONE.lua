@@ -1,14 +1,14 @@
 -- // RIDER WORLD SCRIPT // --
--- // FINAL VERSION: DAGUBA IDLE FIX + MINER GOON CRAFTING // --
+-- // VERSION: DETECT ITEM LIMIT MSG + ANTI-AFK + AUTO EQUIP // --
 
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
 local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
 
--- // 1. SAFE WINDOW CONFIGURATION // --
+-- // 1. WINDOW // --
 local Window = Fluent:CreateWindow({
     Title = "เสี่ยปาล์มขอเงินฟรี",
-    SubTitle = "I LOVE REGINLIEF",
+    SubTitle = "Item Limit Detect",
     TabWidth = 160,
     Size = UDim2.fromOffset(580, 460),
     Acrylic = true, 
@@ -23,7 +23,7 @@ local Tabs = {
 
 local Options = Fluent.Options
 
--- // 2. CUSTOM WINTER TOGGLE BUTTON // --
+-- // 2. WINTER TOGGLE // --
 local function CreateToggleButton(window)
     local ScreenGui = Instance.new("ScreenGui")
     ScreenGui.Name = "FluentToggleUI"
@@ -54,6 +54,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
+local VirtualUser = game:GetService("VirtualUser")
 
 local VirtualInputManager = nil
 pcall(function() VirtualInputManager = game:GetService("VirtualInputManager") end)
@@ -64,6 +65,12 @@ local DIALOGUE_EVENT = ReplicatedStorage.Remote.Event.Dialogue
 local CRAFTING_EVENT = ReplicatedStorage.Remote.Event.CraftingRemote
 local CLIENT_NOTIFIER = ReplicatedStorage.Remote.Event.ClientNotifier
 local RIDER_TRIAL_EVENT = ReplicatedStorage.Remote.Event.RiderTrial
+
+-- // ANTI-AFK // --
+LocalPlayer.Idled:Connect(function()
+    VirtualUser:CaptureController()
+    VirtualUser:ClickButton2(Vector2.new())
+end)
 
 -- // CONFIGURATION // --
 _G.AutoFarm = false
@@ -76,17 +83,21 @@ _G.AttackDist = 4
 local HEIGHT_OFFSET = 0
 local ATTACK_SPEED = 0.25
 
+_G.AutoEquip = true
+_G.AutoHenshin = true
+
 -- // VARIABLES // --
 _G.IsTransforming = false 
 _G.QuestingMode = false
 local IsEnteringDungeon = false
 
--- QUEST & CRAFTING STATE
+-- STATE
 local CurrentState = "FARMING" 
 local QuestCount = 0
 local MaxQuests = 5
-local OutOfMaterials = false
 local WarpedToMine = false
+local CraftStatusSignal = "IDLE" 
+local HenshinDoneForThisLife = false
 
 local AGITO_SAFE_CRAME = CFrame.new(-3516.10425, -1.97061276, -3156.91821, -0.579402685, -7.18338145e-09, 0.815041423, -1.60398237e-08, 1, -2.58899147e-09, -0.815041423, -1.45731889e-08, -0.579402685)
 local AGITO_RETREAT_SPEED = 20 
@@ -133,6 +144,11 @@ local function TweenTo(TargetCFrame, CustomSpeed)
     if Connection then Connection:Disconnect() end
 end
 
+local function CancelMovement()
+    local Root = GetRootPart()
+    if Root then Root.Velocity = Vector3.zero end
+end
+
 local function FireAttack()
     if _G.IsTransforming or not _G.AutoFarm then return end
     local Character = LocalPlayer.Character
@@ -150,7 +166,9 @@ local function FireHeavyAttack()
 end
 
 local function FireSkill(key)
-    if _G.IsTransforming or not _G.AutoFarm then return end
+    if _G.IsTransforming and key ~= "X" then return end
+    if not _G.AutoFarm then return end
+    
     local Character = LocalPlayer.Character
     local Handler = Character and Character:FindFirstChild("PlayerHandler")
     local Event = Handler and Handler:FindFirstChild("HandlerEvent")
@@ -195,31 +213,67 @@ task.spawn(function()
     end
 end)
 
--- Auto Form
+-- Auto Form Loop
 task.spawn(function()
-    while task.wait() do
-        if _G.AutoForm and not _G.IsTransforming and not _G.QuestingMode then
+    while task.wait(3) do 
+        if _G.AutoForm and not _G.IsTransforming then
             FireSkill("X")
-            task.wait(2)
         end
     end
 end)
 
+-- Transform Text Detect
 CLIENT_NOTIFIER.OnClientEvent:Connect(function(Data)
     if _G.QuestingMode then return end
-    if _G.AutoForm and type(Data) == "table" and Data.Text == "You can now transform to Special Form!" then
-        if not _G.IsTransforming then
-            _G.IsTransforming = true 
-            Fluent:Notify({Title = "AUTO FORM", Content = "Transforming...", Duration = 5})
-            FireSkill("X")
-            task.wait(8) 
-            _G.IsTransforming = false 
+    if _G.AutoForm and type(Data) == "table" and Data.Text then
+        if string.find(string.lower(Data.Text), "transform") then
+            if not _G.IsTransforming then
+                _G.IsTransforming = true 
+                Fluent:Notify({Title = "AUTO FORM", Content = "Transforming... Pausing 5s", Duration = 5})
+                FireSkill("X")
+                task.wait(5) 
+                _G.IsTransforming = false 
+            end
         end
     end
 end)
 
--- // WARP & GUI HELPERS // --
+-- Reset on Spawn
+LocalPlayer.CharacterAdded:Connect(function()
+    HenshinDoneForThisLife = false 
+end)
 
+-- AUTO EQUIP & HENSHIN
+task.spawn(function()
+    while task.wait(1) do
+        if _G.AutoFarm then
+            local Character = LocalPlayer.Character
+            
+            -- EQUIP (White Icon -> Red Icon)
+            if _G.AutoEquip and Character and Character:FindFirstChild("Humanoid") then
+                local Backpack = LocalPlayer.Backpack
+                local Tool = Backpack:FindFirstChildOfClass("Tool")
+                if Tool then Character.Humanoid:EquipTool(Tool) end
+            end
+            
+            -- HENSHIN (ONE TIME)
+            if _G.AutoHenshin and not HenshinDoneForThisLife and Character then
+                if Character:FindFirstChild("PlayerHandler") then
+                    task.wait(2) 
+                    local Handler = Character:FindFirstChild("PlayerHandler")
+                    local Event = Handler and Handler:FindFirstChild("HandlerEvent")
+                    if Event then
+                        Event:FireServer({ Henshin = true })
+                        HenshinDoneForThisLife = true 
+                        Fluent:Notify({Title = "Auto Henshin", Content = "Attempted Henshin!", Duration = 3})
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- Warp
 local function WarpTo(Destination)
     local Character = LocalPlayer.Character
     if Character and Character:FindFirstChild("PlayerHandler") and Character.PlayerHandler:FindFirstChild("HandlerEvent") then
@@ -232,12 +286,15 @@ local function WarpTo(Destination)
     end
 end
 
-local function CloseCraftingGUI()
+-- // DESTRUCTIVE GUI CLOSE // --
+local function ClickExitButton()
     local PlayerGui = LocalPlayer:FindFirstChild("PlayerGui")
-    if PlayerGui then
-        local CraftingGUI = PlayerGui:FindFirstChild("CraftingGUI")
-        if CraftingGUI and CraftingGUI:FindFirstChild("Exit") then
-            local ExitBtn = CraftingGUI.Exit
+    if not PlayerGui then return end
+    
+    local CraftingGUI = PlayerGui:FindFirstChild("CraftingGUI")
+    if CraftingGUI then
+        local ExitBtn = CraftingGUI:FindFirstChild("Exit") 
+        if ExitBtn then
             if VirtualInputManager then
                 local pos = ExitBtn.AbsolutePosition
                 local size = ExitBtn.AbsoluteSize
@@ -246,19 +303,21 @@ local function CloseCraftingGUI()
                 task.wait(0.05)
                 VirtualInputManager:SendMouseButtonEvent(center.X, center.Y, 0, false, game, 1)
             end
-            if ExitBtn.MouseButton1Click then 
-                 pcall(function() for _,c in pairs(getconnections(ExitBtn.MouseButton1Click)) do c:Fire() end end)
-            end
-            return true
+            for _, c in pairs(getconnections(ExitBtn.MouseButton1Click)) do c:Fire() end
         end
+        DIALOGUE_EVENT:FireServer({Exit = true})
     end
-    return false
+    
+    local Char = LocalPlayer.Character
+    if Char then
+        local HRP = Char:FindFirstChild("HumanoidRootPart")
+        if HRP then HRP.Anchored = false end
+    end
 end
 
 -- // CRAFTING ROUTINE // --
 
 local function RunCraftingRoutine()
-    -- 1. WARP
     WarpTo("Rider's Center")
     Fluent:Notify({Title = "Crafting", Content = "Warping to Center...", Duration = 3})
     task.wait(6) 
@@ -273,7 +332,6 @@ local function RunCraftingRoutine()
     
     local Root = NPC_Craft:FindFirstChild("HumanoidRootPart") or NPC_Craft:FindFirstChild("Torso")
     if Root then
-        -- 2. MOVE & INTERACT
         TweenTo(Root.CFrame * CFrame.new(0, 0, 3))
         task.wait(0.5)
         
@@ -282,35 +340,94 @@ local function RunCraftingRoutine()
         DIALOGUE_EVENT:FireServer({Choice = "[ Craft ]"})
         task.wait(1)
         
-        -- 3. LISTEN FOR "UNABLE TO CRAFT"
-        OutOfMaterials = false
+        -- // SMART SIGNAL LISTENER // --
+        CraftStatusSignal = "IDLE"
         local Connection
         Connection = CRAFTING_EVENT.OnClientEvent:Connect(function(Data)
-            if type(Data) == "table" and Data.Callback and string.find(Data.Callback, "Unable to craft") then
-                OutOfMaterials = true
-                Fluent:Notify({Title = "Crafting", Content = "Materials Empty!", Duration = 3})
+            if type(Data) == "table" and Data.Callback then
+                local msg = string.lower(Data.Callback)
+                
+                -- IF MSG CONTAINS "limit" or "unable" -> TREAT AS MAXED -> SKIP
+                if string.find(msg, "limit") or string.find(msg, "unable") or string.find(msg, "max") or string.find(msg, "full") then
+                    CraftStatusSignal = "MAX"
+                    
+                -- ONLY if explicit "Not Enough" -> STOP
+                elseif string.find(msg, "not enough") and not string.find(msg, "limit") then
+                    CraftStatusSignal = "EMPTY" 
+                end
             end
         end)
         
-        -- 4. CRAFT LOOP
-        while _G.AutoFarm and not OutOfMaterials do
-            CRAFTING_EVENT:FireServer("Special", "Blue Fragment"); task.wait(0.1)
-            CRAFTING_EVENT:FireServer("Special", "Red Fragment"); task.wait(0.1)
-            CRAFTING_EVENT:FireServer("Special", "Blue Sappyre"); task.wait(0.1)
-            CRAFTING_EVENT:FireServer("Special", "Red Emperor"); task.wait(0.1)
-            task.wait(0.2)
+        local StartCraftTime = tick()
+        local CraftList = {"Blue Fragment", "Red Fragment", "Blue Sappyre", "Red Emperor"}
+        local MustReturnToFarm = false
+        
+        for _, ItemName in ipairs(CraftList) do
+            if not _G.AutoFarm then break end
+            if MustReturnToFarm then break end
+            
+            if (tick() - StartCraftTime) > 60 then break end
+            
+            local ItemActive = true
+            local ItemAttempt = 0
+            
+            Fluent:Notify({Title = "Crafting", Content = "Crafting: " .. ItemName, Duration = 2})
+            
+            while _G.AutoFarm and ItemActive do
+                CraftStatusSignal = "IDLE"
+                CRAFTING_EVENT:FireServer("Special", ItemName)
+                task.wait(0.3) 
+                
+                ItemAttempt = ItemAttempt + 1
+                
+                if CraftStatusSignal == "MAX" then
+                    Fluent:Notify({Title = "Crafting", Content = ItemName .. " Limit Reached! Switching...", Duration = 2})
+                    ItemActive = false -- Break inner loop -> Next item
+                    
+                elseif CraftStatusSignal == "EMPTY" then
+                    Fluent:Notify({Title = "Crafting", Content = "Materials Empty! Returning...", Duration = 3})
+                    ItemActive = false
+                    MustReturnToFarm = true -- Break ALL loops -> Return
+                    
+                elseif ItemAttempt > 20 then
+                    -- Failsafe if signal isn't caught
+                    Fluent:Notify({Title = "Skipping", Content = ItemName .. " (Timeout)", Duration = 2})
+                    ItemActive = false 
+                end
+                
+                if (tick() - StartCraftTime) > 60 then MustReturnToFarm = true; break end
+            end
         end
         
         if Connection then Connection:Disconnect() end
-        CloseCraftingGUI()
+        
+        ClickExitButton()
         task.wait(1) 
         
-        -- 5. RETURN TO MINE
+        -- // TACTICAL RESPAWN // --
         CurrentState = "FARMING"
-        QuestCount = 0
-        WarpTo("Mine's Field") 
-        WarpedToMine = true 
-        task.wait(5) 
+        QuestCount = 0 
+        WarpedToMine = false 
+        
+        Fluent:Notify({Title = "Unstucking", Content = "Respawning to Clear UI State...", Duration = 3})
+        
+        local Char = LocalPlayer.Character
+        if Char and Char:FindFirstChild("Humanoid") then
+            Char.Humanoid.Health = 0
+        end
+        
+        LocalPlayer.CharacterAdded:Wait()
+        local NewChar = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+        NewChar:WaitForChild("HumanoidRootPart")
+        task.wait(2) 
+        
+        Fluent:Notify({Title = "Return", Content = "Respawned! Warping to Mine...", Duration = 3})
+        for i = 1, 5 do 
+            WarpTo("Mine's Field")
+            task.wait(0.5) 
+        end
+        
+        task.wait(1) 
     end
 end
 
@@ -532,7 +649,29 @@ local function GetMinerGoonQuestStatus()
     return "NONE"
 end
 
+local function WaitForDialogueUI()
+    local PlayerGui = LocalPlayer:FindFirstChild("PlayerGui")
+    if not PlayerGui then return false end
+    
+    local Timeout = 0
+    while _G.AutoFarm and Timeout < 20 do 
+        if PlayerGui:FindFirstChild("DialogueGui") or PlayerGui:FindFirstChild("Dialogue") or PlayerGui:FindFirstChild("NPCGui") then
+            return true
+        end
+        Timeout = Timeout + 1
+        Fluent:Notify({Title = "Waiting", Content = "Waiting for Dialogue Window...", Duration = 1})
+        task.wait(0.5)
+    end
+    return false
+end
+
 local function Accept_MinerGoon_Quest()
+    while _G.IsTransforming do 
+        Fluent:Notify({Title = "Paused", Content = "Waiting for Transformation...", Duration = 1})
+        task.wait(1)
+        if not _G.AutoFarm then return end
+    end
+
     local NPC_Lei = Workspace:WaitForChild("NPC"):FindFirstChild("LeeTheMiner")
     if NPC_Lei then
         local Root = NPC_Lei:FindFirstChild("HumanoidRootPart") or NPC_Lei:FindFirstChild("Torso")
@@ -542,26 +681,39 @@ local function Accept_MinerGoon_Quest()
             TweenTo(Root.CFrame * CFrame.new(0, 0, 3))
             task.wait(0.2)
             if not _G.AutoFarm then _G.QuestingMode = false; return end
+            
             for _, desc in pairs(NPC_Lei:GetDescendants()) do
                 if desc:IsA("ClickDetector") then fireclickdetector(desc) elseif desc:IsA("ProximityPrompt") then fireproximityprompt(desc) end
             end
-            task.wait(0.5)
-            local MaxTries = 0
-            while _G.AutoFarm and GetMinerGoonQuestStatus() ~= "ACTIVE" and MaxTries < 3 do
-                local steps = {{Choice = "[ Quest ]"}, {Choice = "[ Repeatable ]"}, {Choice = "Yes, I've done it."}, {Choice = "Okay"}, {Exit = true}}
-                for _, step in ipairs(steps) do
-                    if not _G.AutoFarm then _G.QuestingMode = false; return end
-                    if step.Exit then DIALOGUE_EVENT:FireServer({Exit = true}) else DIALOGUE_EVENT:FireServer(step) end
-                    task.wait(0.3) 
-                end
-                task.wait(1)
-                MaxTries = MaxTries + 1
+            
+            if not WaitForDialogueUI() then
+                _G.QuestingMode = false
+                return 
             end
-            -- Count Quests
-            if GetMinerGoonQuestStatus() == "ACTIVE" then
-                QuestCount = QuestCount + 1
-                Fluent:Notify({Title = "Progress", Content = "Quest: " .. tostring(QuestCount) .. " / " .. tostring(MaxQuests), Duration = 3})
+            
+            local Status = GetMinerGoonQuestStatus()
+            
+            if Status == "NONE" then
+                 local steps = {{Choice = "[ Quest ]"}, {Choice = "[ Repeatable ]"}, {Choice = "Okay"}, {Exit = true}}
+                 for _, step in ipairs(steps) do
+                     if not _G.AutoFarm then break end
+                     if step.Exit then DIALOGUE_EVENT:FireServer({Exit = true}) 
+                     else DIALOGUE_EVENT:FireServer(step) end
+                     task.wait(0.5)
+                 end
+                 
+            elseif Status == "COMPLETED" then
+                 DIALOGUE_EVENT:FireServer({Choice = "Yes, I've done it."})
+                 task.wait(0.5)
+                 DIALOGUE_EVENT:FireServer({Choice = "Okay"})
+                 task.wait(0.5)
+                 DIALOGUE_EVENT:FireServer({Exit = true})
+                 
+                 QuestCount = QuestCount + 1
+                 Fluent:Notify({Title = "Progress", Content = "Quest: " .. tostring(QuestCount) .. " / " .. tostring(MaxQuests), Duration = 3})
             end
+            
+            task.wait(1)
             _G.QuestingMode = false
         end
     end
@@ -687,6 +839,12 @@ local QuestDropdown = Tabs.Main:AddDropdown("QuestSelect", {
     Default = 1,
 })
 
+local PreparationSection = Tabs.Main:AddSection("PREPARATION")
+local ToggleHenshin = Tabs.Main:AddToggle("AutoHenshin", {Title = "Auto Henshin (One Time)", Default = true })
+ToggleHenshin:OnChanged(function() _G.AutoHenshin = Options.AutoHenshin.Value end)
+local ToggleEquip = Tabs.Main:AddToggle("AutoEquip", {Title = "Auto Equip Weapon", Default = true })
+ToggleEquip:OnChanged(function() _G.AutoEquip = Options.AutoEquip.Value end)
+
 local FarmToggle = Tabs.Main:AddToggle("FarmToggle", {Title = "Enable Auto Farm", Default = false })
 
 FarmToggle:OnChanged(function()
@@ -694,114 +852,118 @@ FarmToggle:OnChanged(function()
     
     CurrentState = "FARMING"
     QuestCount = 0
-    WarpedToMine = false
+    -- !!! FIX: ALWAYS WARP FIRST WHEN TOGGLED ON !!! --
+    WarpedToMine = false 
     
     if _G.AutoFarm then
         task.spawn(function()
             while _G.AutoFarm do
-                if not _G.IsTransforming then
-                    
-                    if QuestDropdown.Value == "YUI (Lv. 1-35)" then
-                        if _G.AutoQuest then Farm_Yui_Quest() end
-                        if not _G.AutoFarm then break end
-                        KillEnemy("Dragon User Lv.7"); task.wait(WAIT_BETWEEN_KILLS)
-                        if not _G.AutoFarm then break end
-                        KillEnemy("Crab User Lv.10"); task.wait(WAIT_BETWEEN_KILLS)
-                        if not _G.AutoFarm then break end
-                        KillEnemy("Bat User Lv.12")
-                        if _G.AutoQuest and _G.AutoFarm then WaitForQuestCompletion("Dragon's Alliance") end
-                    
-                    elseif QuestDropdown.Value == "AGITO (Shoichi)" then
-                        local AgitoStatus = Check_Agito_Quest_Active() 
-                        if _G.AutoQuest then
-                            if AgitoStatus == "COMPLETED" or AgitoStatus == "NONE" then
-                                Farm_Agito_Quest()
-                            end
-                            if Check_Agito_Quest_Active() == "ACTIVE" then
-                                if not _G.AutoFarm then break end
-                                Summon_Agito()
-                                if not _G.AutoFarm then break end
-                                KillEnemy("Agito Lv.90") 
-                                if _G.AutoQuest and _G.AutoFarm then WaitForQuestCompletion("Agito") end
-                            end
-                        else
-                             if not _G.AutoFarm then break end
-                             KillEnemy("Agito Lv.90") 
+                
+                -- Check pause
+                while _G.IsTransforming do task.wait(0.5) end
+                
+                if QuestDropdown.Value == "YUI (Lv. 1-35)" then
+                    if _G.AutoQuest then Farm_Yui_Quest() end
+                    if not _G.AutoFarm then break end
+                    KillEnemy("Dragon User Lv.7"); task.wait(ATTACK_SPEED)
+                    if not _G.AutoFarm then break end
+                    KillEnemy("Crab User Lv.10"); task.wait(ATTACK_SPEED)
+                    if not _G.AutoFarm then break end
+                    KillEnemy("Bat User Lv.12")
+                    if _G.AutoQuest and _G.AutoFarm then WaitForQuestCompletion("Dragon's Alliance") end
+                
+                elseif QuestDropdown.Value == "AGITO (Shoichi)" then
+                    local AgitoStatus = Check_Agito_Quest_Active() 
+                    if _G.AutoQuest then
+                        if AgitoStatus == "COMPLETED" or AgitoStatus == "NONE" then
+                            Farm_Agito_Quest()
                         end
-                        
-                    elseif QuestDropdown.Value == "Auto Miner Goon" then
-                        
-                        if CurrentState == "FARMING" then
-                            if QuestCount >= MaxQuests then
-                                CurrentState = "CRAFTING"
-                                RunCraftingRoutine() -- Go Craft
-                            else
-                                if not WarpedToMine then
-                                    WarpTo("Mine's Field")
-                                    WarpedToMine = true
-                                    Fluent:Notify({Title = "Status", Content = "Farming... Quest " .. tostring(QuestCount + 1) .. "/5", Duration = 3})
-                                    task.wait(4) 
-                                end
-
-                                if _G.AutoQuest then
-                                    local Status = GetMinerGoonQuestStatus()
-                                    if Status == "COMPLETED" or Status == "NONE" then Accept_MinerGoon_Quest()
-                                    elseif Status == "ACTIVE" then
-                                        if not _G.AutoFarm then break end
-                                        KillEnemy("Miner Goon Lv.50")
-                                    end
-                                else
-                                    KillEnemy("Miner Goon Lv.50")
-                                end
-                            end
-                        elseif CurrentState == "CRAFTING" then
-                            -- Already handled by transition above
+                        if Check_Agito_Quest_Active() == "ACTIVE" then
+                            if not _G.AutoFarm then break end
+                            Summon_Agito()
+                            if not _G.AutoFarm then break end
+                            KillEnemy("Agito Lv.90") 
+                            if _G.AutoQuest and _G.AutoFarm then WaitForQuestCompletion("Agito") end
                         end
-                    
-                    elseif QuestDropdown.Value == "DAGUBA (Auto Dungeon)" then
-                        local Status = GetDagubaQuestStatus()
-                        
-                        if Status == "COMPLETED" then
-                            -- IDLE FIX: Stop moving and wait
-                            Fluent:Notify({Title = "Daguba", Content = "Quest Completed! Waiting 20s...", Duration = 5})
-                            local Root = GetRootPart()
-                            if Root then Root.Velocity = Vector3.zero end
-                            
-                            for i = 1, 20 do 
-                                if not _G.AutoFarm then break end 
-                                task.wait(1) 
-                            end
-                            
-                            if _G.AutoFarm then Accept_Daguba_Quest() end
-                            
-                        elseif Status == "NONE" then
-                            Accept_Daguba_Quest()
-                        elseif Status == "ACTIVE" then
-                            if IsInAncientDungeon() then
-                                Run_Daguba_Sequence()
-                                task.wait(2)
-                            elseif not IsEnteringDungeon then
-                                IsEnteringDungeon = true
-                                local DungeonStarted = false
-                                local Con
-                                Con = CLIENT_NOTIFIER.OnClientEvent:Connect(function(Data)
-                                    if string.find(Data.Text, "Trial of Ancient") and string.find(Data.Text, "Has begun") then DungeonStarted = true end
-                                end)
-                                RIDER_TRIAL_EVENT:FireServer("Trial of Ancient")
-                                local T = 0
-                                repeat task.wait(1); T = T + 1 until DungeonStarted or T > 15 or not _G.AutoFarm
-                                if Con then Con:Disconnect() end
-                                if DungeonStarted then
-                                    task.wait(2)
-                                    Run_Daguba_Sequence()
-                                end
-                                IsEnteringDungeon = false
-                            end
-                            task.wait(2)
-                        end
+                    else
+                         if not _G.AutoFarm then break end
+                         KillEnemy("Agito Lv.90") 
                     end
                     
+                elseif QuestDropdown.Value == "Auto Miner Goon" then
+                    
+                    if CurrentState == "FARMING" then
+                        if QuestCount >= MaxQuests then
+                            CurrentState = "CRAFTING"
+                            RunCraftingRoutine() -- Go Craft
+                        else
+                            -- !!! WARP FIRST LOGIC !!! --
+                            if not WarpedToMine then
+                                Fluent:Notify({Title = "Status", Content = "Starting... Warping to Mine first!", Duration = 3})
+                                for i=1,5 do WarpTo("Mine's Field"); task.wait(0.2) end
+                                task.wait(3) 
+                                WarpedToMine = true
+                            end
+
+                            if _G.AutoQuest then
+                                local Status = GetMinerGoonQuestStatus()
+                                if Status == "COMPLETED" or Status == "NONE" then Accept_MinerGoon_Quest()
+                                elseif Status == "ACTIVE" then
+                                    if not _G.AutoFarm then break end
+                                    KillEnemy("Miner Goon Lv.50")
+                                end
+                            else
+                                KillEnemy("Miner Goon Lv.50")
+                            end
+                        end
+                    elseif CurrentState == "CRAFTING" then
+                        -- Already handled by transition above
+                    end
+                
+                elseif QuestDropdown.Value == "DAGUBA (Auto Dungeon)" then
+                    
+                    local Status = GetDagubaQuestStatus()
+                    
+                    if Status == "COMPLETED" then
+                        CancelMovement() -- STOP
+                        Fluent:Notify({Title = "Daguba", Content = "Quest Completed! Waiting 20s...", Duration = 5})
+                        
+                        for i = 1, 20 do 
+                            if not _G.AutoFarm then break end 
+                            task.wait(1) 
+                        end
+                        
+                        if _G.AutoFarm then Accept_Daguba_Quest() end
+                        
+                    elseif IsInAncientDungeon() then
+                        Run_Daguba_Sequence()
+                        task.wait(2)
+                        
+                    elseif Status == "NONE" then
+                        Accept_Daguba_Quest()
+                        
+                    elseif Status == "ACTIVE" then
+                        if not IsEnteringDungeon then
+                            IsEnteringDungeon = true
+                            local DungeonStarted = false
+                            local Con
+                            Con = CLIENT_NOTIFIER.OnClientEvent:Connect(function(Data)
+                                if string.find(Data.Text, "Trial of Ancient") and string.find(Data.Text, "Has begun") then DungeonStarted = true end
+                            end)
+                            RIDER_TRIAL_EVENT:FireServer("Trial of Ancient")
+                            local T = 0
+                            repeat task.wait(1); T = T + 1 until DungeonStarted or T > 15 or not _G.AutoFarm
+                            if Con then Con:Disconnect() end
+                            if DungeonStarted then
+                                task.wait(2)
+                                Run_Daguba_Sequence()
+                            end
+                            IsEnteringDungeon = false
+                        end
+                        task.wait(2)
+                    end
                 end
+                
                 task.wait(1)
             end
         end)
@@ -849,5 +1011,5 @@ InterfaceManager:BuildInterfaceSection(Tabs.Settings)
 SaveManager:BuildConfigSection(Tabs.Settings)
 
 Window:SelectTab(1)
-Fluent:Notify({Title = "Script Loaded", Content = "QUEST: I LOVE REGINLIEF", Duration = 5})
+Fluent:Notify({Title = "Script Loaded", Content = "ANTI-AFK + AUTO SKIP", Duration = 5})
 SaveManager:LoadAutoloadConfig()
