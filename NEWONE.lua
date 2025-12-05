@@ -1,5 +1,5 @@
 -- // RIDER WORLD SCRIPT // --
--- // VERSION: RENAMED QUESTS (1-40 & 40-80) // --
+-- // VERSION: RESTORED COMBAT SETTINGS (M1/M2 PRIORITY) // --
 
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
@@ -8,7 +8,7 @@ local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.
 -- // 1. WINDOW // --
 local Window = Fluent:CreateWindow({
     Title = "เสี่ยปาล์มขอเงินฟรี",
-    SubTitle = "Renamed Quests",
+    SubTitle = "Restored M1/M2 Settings",
     TabWidth = 160,
     Size = UDim2.fromOffset(580, 460),
     Acrylic = true, 
@@ -956,6 +956,16 @@ local ToggleC = Tabs.Main:AddToggle("KeyC", {Title = "Use Skill C", Default = fa
 ToggleC:OnChanged(function() _G.SelectedKeys["C"] = Options.KeyC.Value end)
 local ToggleV = Tabs.Main:AddToggle("KeyV", {Title = "Use Skill V", Default = false })
 ToggleV:OnChanged(function() _G.SelectedKeys["V"] = Options.KeyV.Value end)
+
+local CombatSection = Tabs.Main:AddSection("COMBAT SETTINGS")
+local PriorityDrop = Tabs.Main:AddDropdown("PriorityDrop", {Title = "Attack Priority", Values = {"M1 First", "M2 First"}, Multi = false, Default = 1})
+PriorityDrop:OnChanged(function(Value) _G.AttackPriority = Value end)
+local M2Toggle = Tabs.Main:AddToggle("M2Toggle", {Title = "Auto M2 (Heavy Attack)", Default = true })
+M2Toggle:OnChanged(function() _G.AutoM2 = Options.M2Toggle.Value end)
+local M1Toggle = Tabs.Main:AddToggle("M1Toggle", {Title = "Auto M1 (Light Attack)", Default = true })
+M1Toggle:OnChanged(function() _G.AutoM1 = Options.M1Toggle.Value end)
+local SpeedSlider = Tabs.Main:AddSlider("SpeedSlider", {Title = "Tween Speed", Default = 60, Min = 10, Max = 300, Rounding = 0, Callback = function(Value) _G.TweenSpeed = Value end})
+local DistSlider = Tabs.Main:AddSlider("DistSlider", {Title = "Position Behind", Default = 4, Min = 0, Max = 15, Rounding = 1, Callback = function(Value) _G.AttackDist = Value end})
 
 FarmToggle:OnChanged(function()
     _G.AutoFarm = Options.FarmToggle.Value
