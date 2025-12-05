@@ -1,5 +1,5 @@
 -- // RIDER WORLD SCRIPT // --
--- // VERSION: RESTORED COMBAT SETTINGS (M1/M2 PRIORITY) // --
+-- // VERSION: ADDED AUTO ZYGA + FIXED PREVIOUS LOGIC // --
 
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
@@ -8,7 +8,7 @@ local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.
 -- // 1. WINDOW // --
 local Window = Fluent:CreateWindow({
     Title = "เสี่ยปาล์มขอเงินฟรี",
-    SubTitle = "Restored M1/M2 Settings",
+    SubTitle = "Auto Zyga Added",
     TabWidth = 160,
     Size = UDim2.fromOffset(580, 460),
     Acrylic = true, 
@@ -917,13 +917,50 @@ local function Accept_Wind_Quest()
     end
 end
 
+-- // AUTO ZYGA LOGIC // --
+local function RunZygaLogic()
+    if IsEnteringDungeon then return end
+    
+    -- 1. START TRIAL IF NOT IN IT
+    -- Check if boss exists to know if we are in trial
+    local Boss = LIVES_FOLDER:FindFirstChild("Zyga Lv.85")
+    
+    if not Boss then
+        IsEnteringDungeon = true
+        Fluent:Notify({Title = "Auto Zyga", Content = "Starting Trial...", Duration = 3})
+        
+        RIDER_TRIAL_EVENT:FireServer("Trial of Zyga")
+        
+        -- Wait for load
+        local T = 0
+        repeat 
+            task.wait(1)
+            T = T + 1
+            Boss = LIVES_FOLDER:FindFirstChild("Zyga Lv.85")
+        until Boss or T > 15 or not _G.AutoFarm
+        
+        IsEnteringDungeon = false
+        task.wait(2)
+    else
+        -- 2. FIGHT BOSS
+        KillEnemy("Zyga Lv.85")
+        
+        -- 3. COOLDOWN AFTER DEATH
+        if not LIVES_FOLDER:FindFirstChild("Zyga Lv.85") and _G.AutoFarm then
+            Fluent:Notify({Title = "Auto Zyga", Content = "Boss Dead! Waiting 20s...", Duration = 20})
+            CancelMovement()
+            task.wait(20)
+        end
+    end
+end
+
 -- // UI ELEMENTS // --
 
 local YuiSection = Tabs.Main:AddSection("YUI QUEST")
 
 local QuestDropdown = Tabs.Main:AddDropdown("QuestSelect", {
     Title = "Select Quest",
-    Values = {"quest 1-40", "quest 40-80", "AGITO (Shoichi)", "Auto Miner Goon", "DAGUBA (Auto Dungeon)"},
+    Values = {"quest 1-40", "quest 40-80", "AGITO (Shoichi)", "Auto Miner Goon", "DAGUBA (Auto Dungeon)", "Auto Zyga"},
     Multi = false,
     Default = 1,
 })
@@ -1097,6 +1134,9 @@ FarmToggle:OnChanged(function()
                         end
                         task.wait(2)
                     end
+                    
+                elseif QuestDropdown.Value == "Auto Zyga" then
+                     RunZygaLogic()
                 end
                 
                 task.wait(1)
@@ -1114,5 +1154,5 @@ InterfaceManager:BuildInterfaceSection(Tabs.Settings)
 SaveManager:BuildConfigSection(Tabs.Settings)
 
 Window:SelectTab(1)
-Fluent:Notify({Title = "Script Loaded", Content = "RENAMED QUESTS (1-40 & 40-80)", Duration = 5})
+Fluent:Notify({Title = "Script Loaded", Content = "AUTO ZYGA ADDED", Duration = 5})
 SaveManager:LoadAutoloadConfig()
