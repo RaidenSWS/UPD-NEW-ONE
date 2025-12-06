@@ -1,5 +1,5 @@
 -- // RIDER WORLD SCRIPT // --
--- // VERSION: ADDED AUTO 40-80 (MALCOM) + RENAMED MUMMY // --
+-- // VERSION: ADDED AUTO ROOK & BISHOP // --
 
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
@@ -8,7 +8,7 @@ local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.
 -- // 1. WINDOW // --
 local Window = Fluent:CreateWindow({
     Title = "เสี่ยปาล์มขอเงินฟรี",
-    SubTitle = "Auto 40-80 Added",
+    SubTitle = "Auto Rook & Bishop Added",
     TabWidth = 160,
     Size = UDim2.fromOffset(580, 460),
     Acrylic = true, 
@@ -106,6 +106,9 @@ local EquipDone = false
 local AGITO_SAFE_CRAME = CFrame.new(-3516.10425, -1.97061276, -3156.91821, -0.579402685, -7.18338145e-09, 0.815041423, -1.60398237e-08, 1, -2.58899147e-09, -0.815041423, -1.45731889e-08, -0.579402685)
 local AGITO_RETREAT_SPEED = 20 
 local DAGUBA_BOSSES = {"Mighty Rider Lv.90", "Daguba Lv.90", "Empowered Daguba Lv.90"}
+
+-- NEW: ROOK & BISHOP VARS
+local ROOK_BISHOP_SUMMON_CF = CFrame.new(4779.29, 8.53, 97.93)
 
 _G.AutoSkill = false
 _G.FormName = "Survive Bat"
@@ -973,6 +976,76 @@ local function Accept_Malcom_Quest()
     end
 end
 
+-- // ROOK & BISHOP (AUTO ROOK&BISHOP) FUNCTIONS // --
+
+local function GetRookBishopQuestStatus()
+    local PlayerGui = LocalPlayer:FindFirstChild("PlayerGui")
+    if PlayerGui then
+        local GUI = PlayerGui.Main.QuestAlertFrame.QuestGUI
+        if GUI:FindFirstChild("Double or Solo") and GUI["Double or Solo"].Visible then
+            if string.find(GUI["Double or Solo"].TextLabel.Text, "Completed") then
+                return "COMPLETED"
+            end
+            return "ACTIVE"
+        end
+    end
+    return "NONE"
+end
+
+local function Accept_RookBishop_Quest()
+    while _G.IsTransforming do task.wait(1) end
+    
+    -- Keisuke is the NPC
+    local NPC = Workspace:WaitForChild("NPC"):FindFirstChild("Keisuke")
+    if NPC then
+        local Root = NPC:FindFirstChild("HumanoidRootPart") or NPC:FindFirstChild("Torso")
+        if Root then
+            _G.QuestingMode = true
+            TweenTo(Root.CFrame * CFrame.new(0, 0, 3))
+            task.wait(0.2)
+            if not _G.AutoFarm then _G.QuestingMode = false; return end
+            
+            local Clicker = NPC:FindFirstChild("ClickDetector")
+            if Clicker then fireclickdetector(Clicker) end
+            
+            task.wait(1)
+            local Status = GetRookBishopQuestStatus()
+            
+            -- Simple logic: [ Repeatable Quest ] -> Exit
+            -- Works for both Accept and Turn In according to logs
+            DIALOGUE_EVENT:FireServer({Choice = "[ Repeatable Quest ]"})
+            task.wait(0.5)
+            DIALOGUE_EVENT:FireServer({Exit = true})
+            
+            task.wait(1)
+            _G.QuestingMode = false
+        end
+    end
+end
+
+local function Summon_RookBishop()
+    if not _G.AutoFarm then return end
+    
+    -- Check if bosses already exist
+    if LIVES_FOLDER:FindFirstChild("Bishop Lv.80") or LIVES_FOLDER:FindFirstChild("Rook Lv.80") then
+        return -- Already summoned
+    end
+    
+    -- Go to Summon Spot
+    TweenTo(ROOK_BISHOP_SUMMON_CF)
+    task.wait(0.5)
+    
+    -- Press E logic (needs to find the ProximityPrompt at this location)
+    -- Assuming there is a part nearby with a prompt
+    for _, v in pairs(Workspace:GetDescendants()) do
+        if v:IsA("ProximityPrompt") and (v.Parent.Position - ROOK_BISHOP_SUMMON_CF.Position).Magnitude < 10 then
+            fireproximityprompt(v)
+            break
+        end
+    end
+    task.wait(1.5)
+end
+
 -- // AUTO ZYGA LOGIC // --
 local function RunZygaLogic()
     if IsEnteringDungeon then return end
@@ -1011,7 +1084,7 @@ local YuiSection = Tabs.Main:AddSection("YUI QUEST")
 
 local QuestDropdown = Tabs.Main:AddDropdown("QuestSelect", {
     Title = "Select Quest",
-    Values = {"quest 1-40", "Mummy (40-80)", "Auto 40-80", "AGITO (Shoichi)", "Auto Miner Goon", "DAGUBA (Auto Dungeon)", "Auto Zyga"},
+    Values = {"quest 1-40", "Mummy (40-80)", "Auto 40-80", "Auto Rook&Bishop", "AGITO (Shoichi)", "Auto Miner Goon", "DAGUBA (Auto Dungeon)", "Auto Zyga"},
     Multi = false,
     Default = 1,
 })
@@ -1110,6 +1183,23 @@ FarmToggle:OnChanged(function()
                         elseif M2 then
                              KillEnemy("Gazelle User Lv.45")
                         end
+                    end
+                
+                elseif QuestDropdown.Value == "Auto Rook&Bishop" then
+                    local Status = GetRookBishopQuestStatus()
+                    
+                    if Status == "COMPLETED" or Status == "NONE" then
+                        if _G.AutoQuest then Accept_RookBishop_Quest() end
+                    elseif Status == "ACTIVE" then
+                        if not _G.AutoFarm then break end
+                        Summon_RookBishop() -- Go summon if not there
+                        if not _G.AutoFarm then break end
+                        
+                        local B1 = LIVES_FOLDER:FindFirstChild("Bishop Lv.80")
+                        local B2 = LIVES_FOLDER:FindFirstChild("Rook Lv.80")
+                        
+                        if B1 then KillEnemy("Bishop Lv.80") end
+                        if B2 then KillEnemy("Rook Lv.80") end
                     end
                 
                 elseif QuestDropdown.Value == "AGITO (Shoichi)" then
@@ -1222,5 +1312,5 @@ InterfaceManager:BuildInterfaceSection(Tabs.Settings)
 SaveManager:BuildConfigSection(Tabs.Settings)
 
 Window:SelectTab(1)
-Fluent:Notify({Title = "Script Loaded", Content = "AUTO 40-80 ADDED", Duration = 5})
+Fluent:Notify({Title = "Script Loaded", Content = "AUTO ROOK & BISHOP ADDED", Duration = 5})
 SaveManager:LoadAutoloadConfig()
