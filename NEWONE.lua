@@ -1,5 +1,5 @@
 -- // RIDER WORLD SCRIPT // --
--- // VERSION: ADDED AUTO ZYGA + FIXED PREVIOUS LOGIC // --
+-- // VERSION: ADDED AUTO 40-80 (MALCOM) + RENAMED MUMMY // --
 
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
@@ -8,7 +8,7 @@ local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.
 -- // 1. WINDOW // --
 local Window = Fluent:CreateWindow({
     Title = "เสี่ยปาล์มขอเงินฟรี",
-    SubTitle = "Auto Zyga Added",
+    SubTitle = "Auto 40-80 Added",
     TabWidth = 160,
     Size = UDim2.fromOffset(580, 460),
     Acrylic = true, 
@@ -84,8 +84,8 @@ local HEIGHT_OFFSET = 0
 local ATTACK_SPEED = 0.25
 
 _G.AutoEquip = true
-_G.AutoHenshin = true -- Base Form (H)
-_G.AutoForm = false   -- Survive Form (X)
+_G.AutoHenshin = true -- Press H (Base)
+_G.AutoForm = false   -- Press X (Survive) - Set by Toggle
 
 -- // VARIABLES // --
 _G.IsTransforming = false 
@@ -857,7 +857,6 @@ local function GetWindQuestStatus()
     local PlayerGui = LocalPlayer:FindFirstChild("PlayerGui")
     if PlayerGui then
         local GUI = PlayerGui.Main.QuestAlertFrame.QuestGUI
-        -- Look for the Mummy quest frame
         if GUI:FindFirstChild("Mummy Return?") and GUI["Mummy Return?"].Visible then
             if string.find(GUI["Mummy Return?"].TextLabel.Text, "Completed") then
                 return "COMPLETED"
@@ -869,7 +868,6 @@ local function GetWindQuestStatus()
 end
 
 local function Accept_Wind_Quest()
-    -- 1. Pause if Transforming
     while _G.IsTransforming do task.wait(1) end
 
     local NPC = Workspace:WaitForChild("NPC"):FindFirstChild("WindTourist")
@@ -881,15 +879,13 @@ local function Accept_Wind_Quest()
             task.wait(0.2)
             if not _G.AutoFarm then _G.QuestingMode = false; return end
             
-            -- Click
             local Clicker = NPC:FindFirstChild("ClickDetector")
             if Clicker then fireclickdetector(Clicker) end
             
-            task.wait(1) -- Wait for GUI
+            task.wait(1) 
             local Status = GetWindQuestStatus()
             
             if Status == "NONE" then
-                -- Accept New Quest
                 DIALOGUE_EVENT:FireServer({Choice = "Sure!"})
                 task.wait(0.5)
                 DIALOGUE_EVENT:FireServer({Choice = "Mummy Return?"})
@@ -899,7 +895,6 @@ local function Accept_Wind_Quest()
                 DIALOGUE_EVENT:FireServer({Exit = true})
                 
             elseif Status == "COMPLETED" then
-                -- Turn In
                 DIALOGUE_EVENT:FireServer({Choice = "Yes, I've completed it."})
                 task.wait(0.5)
                 DIALOGUE_EVENT:FireServer({Choice = "Can I get another quest?"})
@@ -917,12 +912,71 @@ local function Accept_Wind_Quest()
     end
 end
 
+-- // MALCOM (AUTO 40-80) FUNCTIONS // --
+
+local function GetMalcomQuestStatus()
+    local PlayerGui = LocalPlayer:FindFirstChild("PlayerGui")
+    if PlayerGui then
+        local GUI = PlayerGui.Main.QuestAlertFrame.QuestGUI
+        if GUI:FindFirstChild("The Hunt Hunted") and GUI["The Hunt Hunted"].Visible then
+            if string.find(GUI["The Hunt Hunted"].TextLabel.Text, "Completed") then
+                return "COMPLETED"
+            end
+            return "ACTIVE"
+        end
+    end
+    return "NONE"
+end
+
+local function Accept_Malcom_Quest()
+    while _G.IsTransforming do task.wait(1) end
+
+    local NPC = Workspace:WaitForChild("NPC"):FindFirstChild("Malcom")
+    if NPC then
+        local Root = NPC:FindFirstChild("HumanoidRootPart") or NPC:FindFirstChild("Torso")
+        if Root then
+            _G.QuestingMode = true
+            TweenTo(Root.CFrame * CFrame.new(0, 0, 3))
+            task.wait(0.2)
+            if not _G.AutoFarm then _G.QuestingMode = false; return end
+            
+            local Clicker = NPC:FindFirstChild("ClickDetector")
+            if Clicker then fireclickdetector(Clicker) end
+            
+            task.wait(1)
+            local Status = GetMalcomQuestStatus()
+            
+            if Status == "NONE" then
+                DIALOGUE_EVENT:FireServer({Choice = "I'm ready for the challenge!"})
+                task.wait(0.5)
+                DIALOGUE_EVENT:FireServer({Choice = "The Hunt Hunted"})
+                task.wait(0.5)
+                DIALOGUE_EVENT:FireServer({Choice = "Start 'The Hunt Hunted'"})
+                task.wait(0.5)
+                DIALOGUE_EVENT:FireServer({Exit = true})
+                
+            elseif Status == "COMPLETED" then
+                DIALOGUE_EVENT:FireServer({Choice = "Yes, I've completed it."})
+                task.wait(0.5)
+                DIALOGUE_EVENT:FireServer({Choice = "Can I get another quest?"})
+                task.wait(0.5)
+                DIALOGUE_EVENT:FireServer({Choice = "The Hunt Hunted"})
+                task.wait(0.5)
+                DIALOGUE_EVENT:FireServer({Choice = "Start 'The Hunt Hunted'"})
+                task.wait(0.5)
+                DIALOGUE_EVENT:FireServer({Exit = true})
+            end
+            
+            task.wait(1)
+            _G.QuestingMode = false
+        end
+    end
+end
+
 -- // AUTO ZYGA LOGIC // --
 local function RunZygaLogic()
     if IsEnteringDungeon then return end
     
-    -- 1. START TRIAL IF NOT IN IT
-    -- Check if boss exists to know if we are in trial
     local Boss = LIVES_FOLDER:FindFirstChild("Zyga Lv.85")
     
     if not Boss then
@@ -931,7 +985,6 @@ local function RunZygaLogic()
         
         RIDER_TRIAL_EVENT:FireServer("Trial of Zyga")
         
-        -- Wait for load
         local T = 0
         repeat 
             task.wait(1)
@@ -942,10 +995,8 @@ local function RunZygaLogic()
         IsEnteringDungeon = false
         task.wait(2)
     else
-        -- 2. FIGHT BOSS
         KillEnemy("Zyga Lv.85")
         
-        -- 3. COOLDOWN AFTER DEATH
         if not LIVES_FOLDER:FindFirstChild("Zyga Lv.85") and _G.AutoFarm then
             Fluent:Notify({Title = "Auto Zyga", Content = "Boss Dead! Waiting 20s...", Duration = 20})
             CancelMovement()
@@ -960,7 +1011,7 @@ local YuiSection = Tabs.Main:AddSection("YUI QUEST")
 
 local QuestDropdown = Tabs.Main:AddDropdown("QuestSelect", {
     Title = "Select Quest",
-    Values = {"quest 1-40", "quest 40-80", "AGITO (Shoichi)", "Auto Miner Goon", "DAGUBA (Auto Dungeon)", "Auto Zyga"},
+    Values = {"quest 1-40", "Mummy (40-80)", "Auto 40-80", "AGITO (Shoichi)", "Auto Miner Goon", "DAGUBA (Auto Dungeon)", "Auto Zyga"},
     Multi = false,
     Default = 1,
 })
@@ -1034,7 +1085,7 @@ FarmToggle:OnChanged(function()
                     KillEnemy("Bat User Lv.12")
                     if _G.AutoQuest and _G.AutoFarm then WaitForQuestCompletion("Dragon's Alliance") end
                 
-                elseif QuestDropdown.Value == "quest 40-80" then
+                elseif QuestDropdown.Value == "Mummy (40-80)" then
                     local Status = GetWindQuestStatus()
                     
                     if Status == "COMPLETED" or Status == "NONE" then
@@ -1042,6 +1093,23 @@ FarmToggle:OnChanged(function()
                     elseif Status == "ACTIVE" then
                         if not _G.AutoFarm then break end
                         KillEnemy("Mummy Lv.40")
+                    end
+                
+                elseif QuestDropdown.Value == "Auto 40-80" then
+                    local Status = GetMalcomQuestStatus()
+                    
+                    if Status == "COMPLETED" or Status == "NONE" then
+                        if _G.AutoQuest then Accept_Malcom_Quest() end
+                    elseif Status == "ACTIVE" then
+                        if not _G.AutoFarm then break end
+                        local M1 = LIVES_FOLDER:FindFirstChild("Dark Dragon User Lv.40")
+                        local M2 = LIVES_FOLDER:FindFirstChild("Gazelle User Lv.45")
+                        
+                        if M1 then
+                             KillEnemy("Dark Dragon User Lv.40")
+                        elseif M2 then
+                             KillEnemy("Gazelle User Lv.45")
+                        end
                     end
                 
                 elseif QuestDropdown.Value == "AGITO (Shoichi)" then
@@ -1154,5 +1222,5 @@ InterfaceManager:BuildInterfaceSection(Tabs.Settings)
 SaveManager:BuildConfigSection(Tabs.Settings)
 
 Window:SelectTab(1)
-Fluent:Notify({Title = "Script Loaded", Content = "AUTO ZYGA ADDED", Duration = 5})
+Fluent:Notify({Title = "Script Loaded", Content = "AUTO 40-80 ADDED", Duration = 5})
 SaveManager:LoadAutoloadConfig()
