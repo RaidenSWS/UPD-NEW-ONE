@@ -1,5 +1,5 @@
 -- // RIDER WORLD SCRIPT // --
--- // VERSION: ADDED WORLD BOSS TAB + AUTO KILL // --
+-- // VERSION: SMOOTH BOSS STICKING // --
 
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
@@ -8,7 +8,7 @@ local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.
 -- // 1. WINDOW // --
 local Window = Fluent:CreateWindow({
     Title = "เสี่ยปาล์มขอเงินฟรี",
-    SubTitle = "World Boss Update",
+    SubTitle = "Smooth Boss Kill",
     TabWidth = 160,
     Size = UDim2.fromOffset(580, 460),
     Acrylic = true, 
@@ -18,7 +18,7 @@ local Window = Fluent:CreateWindow({
 
 local Tabs = {
     Main = Window:AddTab({ Title = "MAIN", Icon = "sword" }),
-    WorldBoss = Window:AddTab({ Title = "WORLD BOSS", Icon = "skull" }), -- NEW TAB
+    WorldBoss = Window:AddTab({ Title = "WORLD BOSS", Icon = "skull" }), 
     Settings = Window:AddTab({ Title = "Settings", Icon = "settings" })
 }
 
@@ -75,7 +75,7 @@ end)
 
 -- // CONFIGURATION // --
 _G.AutoFarm = false
-_G.AutoBoss = false -- NEW TOGGLE
+_G.AutoBoss = false 
 _G.AutoQuest = true     
 _G.AutoM1 = true
 _G.AutoM2 = true 
@@ -232,10 +232,9 @@ end)
 
 -- // AUTO FORM LOOP (X) // --
 task.spawn(function()
-    while task.wait() do
+    while task.wait(1) do
         if _G.AutoForm and not _G.IsTransforming and not _G.QuestingMode then
             FireSkill("X")
-            task.wait(2)
         end
     end
 end)
@@ -244,18 +243,19 @@ end)
 CLIENT_NOTIFIER.OnClientEvent:Connect(function(Data)
     if _G.QuestingMode then return end
     
-    if _G.AutoForm and type(Data) == "table" and Data.Text == "You can now transform to Special Form!" then
-        if not _G.IsTransforming then
-            _G.IsTransforming = true 
-            Fluent:Notify({Title = "AUTO FORM", Content = "Transforming...", Duration = 5})
-            FireSkill("X")
-            task.wait(8) 
-            _G.IsTransforming = false 
-        end
-    end
-    
     if type(Data) == "table" and Data.Text then 
         local txt = string.lower(Data.Text)
+        
+        if _G.AutoForm and string.find(txt, "transform") then
+            if not _G.IsTransforming then
+                _G.IsTransforming = true 
+                Fluent:Notify({Title = "AUTO FORM", Content = "Transforming... Pausing 9s", Duration = 5})
+                FireSkill("X")
+                task.wait(9) 
+                _G.IsTransforming = false 
+            end
+        end
+    
         if string.find(txt, "dont have enough stamina") or string.find(txt, "don't have enough stamina") then
             local Char = LocalPlayer.Character
             if Char and Char:FindFirstChild("Humanoid") then
@@ -326,84 +326,119 @@ local function GetNearestTarget(EnemyName)
     return NearestMob
 end
 
--- // BOSS KILLING FUNCTION (Specific for World Boss) // --
+-- // SMOOTH BOSS KILLING FUNCTION (UPDATED) // --
 local function KillBossByName(BossName)
     if not _G.AutoBoss then return end
     while _G.IsTransforming and _G.AutoBoss do task.wait(0.5) end
     
-    -- Find specific boss (direct lookup first)
+    -- Find specific boss
     local Target = LIVES_FOLDER:FindFirstChild(BossName)
     if not Target then return end
 
     if Target then
-        -- Tween
+        -- 1. Initial Tween to get close
         if Target:FindFirstChild("HumanoidRootPart") then
              TweenTo(Target.HumanoidRootPart.CFrame * CFrame.new(0, 2, _G.AttackDist), 60)
         end
         
-        -- Combat Loop
+        -- 2. SMOOTH STICKER (Using Heartbeat, like KillEnemy)
+        local Sticker
+        Sticker = RunService.Heartbeat:Connect(function()
+            local MyRoot = GetRootPart()
+            if not MyRoot then return end
+            
+            -- Validation: Check if boss still exists and we are farming
+            if _G.AutoBoss and Target and Target.Parent == LIVES_FOLDER and Target:FindFirstChild("HumanoidRootPart") and Target.Humanoid.Health > 0 then
+                if not _G.IsTransforming then
+                    local EnemyCFrame = Target.HumanoidRootPart.CFrame
+                    -- This uses the exact same math as KillEnemy to ensure it's smooth
+                    local BehindPosition = EnemyCFrame * CFrame.new(0, HEIGHT_OFFSET, _G.AttackDist)
+                    MyRoot.CFrame = CFrame.new(BehindPosition.Position, EnemyCFrame.Position)
+                    MyRoot.Velocity = Vector3.zero
+                end
+            else
+                -- Disconnect if target dead or farm off
+                if Sticker then Sticker:Disconnect() end
+            end
+        end)
+        
+        -- 3. COMBAT LOOP
         while _G.AutoBoss and Target.Parent == LIVES_FOLDER do
             if not Target:FindFirstChild("HumanoidRootPart") or Target.Humanoid.Health <= 0 then break end
             
             if _G.IsTransforming then 
                 repeat task.wait(0.2) until not _G.IsTransforming 
             else 
-                -- Lock on target
-                local MyRoot = GetRootPart()
-                if MyRoot and Target:FindFirstChild("HumanoidRootPart") then
-                     local EnemyCF = Target.HumanoidRootPart.CFrame
-                     MyRoot.CFrame = CFrame.new(EnemyCF.Position + (EnemyCF.LookVector * -_G.AttackDist) + Vector3.new(0, HEIGHT_OFFSET, 0), EnemyCF.Position)
-                     MyRoot.Velocity = Vector3.zero
-                end
                 DoCombat() 
             end
             task.wait(ATTACK_SPEED)
         end
+        
+        -- Cleanup
+        if Sticker then Sticker:Disconnect() end
     end
 end
 
--- // FARM LOGIC FUNCTIONS (SAME AS BEFORE) // --
--- (Collapsed for brevity - they are identical to previous script)
+-- // FARM LOGIC FUNCTIONS // --
+
 local function KillEnemy(EnemyName)
-    -- ... (Standard kill function used by AutoFarm)
     if not _G.AutoFarm then return end
-    -- ... [Same logic as before] ...
-    -- Re-implementing logic here for safety
     while _G.IsTransforming and _G.AutoFarm do task.wait(0.5) end
+    
     local Target = GetNearestTarget(EnemyName)
     if not Target then task.wait(0.5) return end
+
     if Target then
         if EnemyName == "Agito Lv.90" then
-             TweenTo(Target.HumanoidRootPart.CFrame * CFrame.new(0, 2, _G.AttackDist), 60)
-             local StartTime = tick()
-             while _G.AutoFarm and Target.Parent == LIVES_FOLDER and Target.Humanoid.Health > 0 and (tick() - StartTime < 3) do
-                  if _G.IsTransforming then repeat task.wait(0.2) until not _G.IsTransforming end
-                  local MyRoot = GetRootPart()
-                  if MyRoot then
-                       MyRoot.CFrame = CFrame.new(Target.HumanoidRootPart.Position + Vector3.new(0, HEIGHT_OFFSET, _G.AttackDist), Target.HumanoidRootPart.Position)
-                       MyRoot.Velocity = Vector3.zero
-                       DoCombat()
-                  end
-                  task.wait(ATTACK_SPEED)
-             end
-             if Target.Humanoid.Health > 0 and _G.AutoFarm and LIVES_FOLDER:FindFirstChild(EnemyName) and not _G.IsTransforming then
-                  TweenTo(AGITO_SAFE_CRAME, AGITO_RETREAT_SPEED)
-                  if not _G.AutoFarm then return end
-                  task.wait(4)
-                  TweenTo(Target.HumanoidRootPart.CFrame * CFrame.new(0, 2, _G.AttackDist))
-             end
+            TweenTo(Target.HumanoidRootPart.CFrame * CFrame.new(0, 2, _G.AttackDist), 60)
+            local StartTime = tick()
+            while _G.AutoFarm and Target.Parent == LIVES_FOLDER and Target.Humanoid.Health > 0 and (tick() - StartTime < 3) do
+                if _G.IsTransforming then repeat task.wait(0.2) until not _G.IsTransforming end
+                local MyRoot = GetRootPart()
+                if MyRoot then
+                    MyRoot.CFrame = CFrame.new(Target.HumanoidRootPart.Position + Vector3.new(0, HEIGHT_OFFSET, _G.AttackDist), Target.HumanoidRootPart.Position)
+                    MyRoot.Velocity = Vector3.zero
+                    DoCombat()
+                end
+                task.wait(ATTACK_SPEED)
+            end
+            
+            if Target.Humanoid.Health > 0 and _G.AutoFarm and LIVES_FOLDER:FindFirstChild(EnemyName) and not _G.IsTransforming then
+                TweenTo(AGITO_SAFE_CRAME, AGITO_RETREAT_SPEED)
+                if not _G.AutoFarm then return end
+                task.wait(4)
+                TweenTo(Target.HumanoidRootPart.CFrame * CFrame.new(0, 2, _G.AttackDist))
+            end
         else
-             TweenTo(Target.HumanoidRootPart.CFrame * CFrame.new(0, 2, _G.AttackDist))
+            TweenTo(Target.HumanoidRootPart.CFrame * CFrame.new(0, 2, _G.AttackDist))
         end
+        
+        -- SMOOTH STICKER FOR FARMING
+        local Sticker
+        Sticker = RunService.Heartbeat:Connect(function()
+            local MyRoot = GetRootPart()
+            if not MyRoot then return end
+            if _G.AutoFarm and Target and Target.Parent == LIVES_FOLDER and Target:FindFirstChild("HumanoidRootPart") and Target.Humanoid.Health > 0 then
+                local EnemyCFrame = Target.HumanoidRootPart.CFrame
+                local BehindPosition = EnemyCFrame * CFrame.new(0, HEIGHT_OFFSET, _G.AttackDist)
+                MyRoot.CFrame = CFrame.new(BehindPosition.Position, EnemyCFrame.Position)
+                MyRoot.Velocity = Vector3.zero
+            else
+                if Sticker then Sticker:Disconnect() end
+            end
+        end)
+
         while _G.AutoFarm and Target.Parent == LIVES_FOLDER do
             if not Target:FindFirstChild("HumanoidRootPart") or Target.Humanoid.Health <= 0 then break end
             if _G.IsTransforming then repeat task.wait(0.2) until not _G.IsTransforming else DoCombat() end
             task.wait(ATTACK_SPEED)
         end
+        if Sticker then Sticker:Disconnect() end
     end
 end
--- [Include other quest functions: Accept_Wind_Quest, Accept_Malcom_Quest, etc. same as before]
--- Re-including minimal required for context to ensure script runs
+
+-- [Quest Functions omitted for brevity, they remain the same]
+-- RE-ADDING NECESSARY FUNCTIONS TO ENSURE FULL CODE IS RUNNABLE
 local function GetWindQuestStatus()
     local GUI = LocalPlayer.PlayerGui.Main.QuestAlertFrame.QuestGUI
     if GUI:FindFirstChild("Mummy Return?") and GUI["Mummy Return?"].Visible then
@@ -435,6 +470,68 @@ local function Accept_Wind_Quest()
     end
 end
 
+local function GetMalcomQuestStatus()
+    local GUI = LocalPlayer.PlayerGui.Main.QuestAlertFrame.QuestGUI
+    if GUI:FindFirstChild("The Hunt Hunted") and GUI["The Hunt Hunted"].Visible then
+        return string.find(GUI["The Hunt Hunted"].TextLabel.Text, "Completed") and "COMPLETED" or "ACTIVE"
+    end
+    return "NONE"
+end
+local function Accept_Malcom_Quest()
+    while _G.IsTransforming do task.wait(1) end
+    local NPC = Workspace.NPC:FindFirstChild("Malcom")
+    if NPC then
+        TweenTo(NPC.HumanoidRootPart.CFrame * CFrame.new(0,0,3))
+        fireclickdetector(NPC.ClickDetector)
+        task.wait(1)
+        local Status = GetMalcomQuestStatus()
+        if Status == "NONE" then
+            DIALOGUE_EVENT:FireServer({Choice = "I'm ready for the challenge!"}); task.wait(0.5)
+            DIALOGUE_EVENT:FireServer({Choice = "The Hunt Hunted"}); task.wait(0.5)
+            DIALOGUE_EVENT:FireServer({Choice = "Start 'The Hunt Hunted'"}); task.wait(0.5)
+            DIALOGUE_EVENT:FireServer({Exit = true})
+        elseif Status == "COMPLETED" then
+            DIALOGUE_EVENT:FireServer({Choice = "Yes, I've completed it."}); task.wait(0.5)
+            DIALOGUE_EVENT:FireServer({Choice = "Can I get another quest?"}); task.wait(0.5)
+            DIALOGUE_EVENT:FireServer({Choice = "The Hunt Hunted"}); task.wait(0.5)
+            DIALOGUE_EVENT:FireServer({Choice = "Start 'The Hunt Hunted'"}); task.wait(0.5)
+            DIALOGUE_EVENT:FireServer({Exit = true})
+        end
+        task.wait(1); _G.QuestingMode = false
+    end
+end
+local ROOK_BISHOP_SUMMON_CF = CFrame.new(4779.29, 8.53, 97.93)
+local function GetRookBishopQuestStatus()
+    local GUI = LocalPlayer.PlayerGui.Main.QuestAlertFrame.QuestGUI
+    if GUI:FindFirstChild("Double or Solo") and GUI["Double or Solo"].Visible then
+        return string.find(GUI["Double or Solo"].TextLabel.Text, "Completed") and "COMPLETED" or "ACTIVE"
+    end
+    return "NONE"
+end
+local function Accept_RookBishop_Quest()
+    while _G.IsTransforming do task.wait(1) end
+    local NPC = Workspace.NPC:FindFirstChild("Keisuke")
+    if NPC then
+        TweenTo(NPC.HumanoidRootPart.CFrame * CFrame.new(0,0,3))
+        fireclickdetector(NPC.ClickDetector)
+        task.wait(1)
+        DIALOGUE_EVENT:FireServer({Choice = "[ Repeatable Quest ]"}); task.wait(0.5)
+        DIALOGUE_EVENT:FireServer({Exit = true}); task.wait(1)
+        _G.QuestingMode = false
+    end
+end
+local function Summon_RookBishop()
+    if not _G.AutoFarm then return end
+    if LIVES_FOLDER:FindFirstChild("Bishop Lv.80") or LIVES_FOLDER:FindFirstChild("Rook Lv.80") then return end
+    TweenTo(ROOK_BISHOP_SUMMON_CF); task.wait(0.5)
+    for _, v in pairs(Workspace:GetDescendants()) do
+        if v:IsA("ProximityPrompt") and (v.Parent.Position - ROOK_BISHOP_SUMMON_CF.Position).Magnitude < 10 then
+            fireproximityprompt(v); break
+        end
+    end
+    task.wait(1.5)
+end
+
 -- // UI ELEMENTS // --
 local YuiSection = Tabs.Main:AddSection("YUI QUEST")
 
@@ -461,36 +558,21 @@ BossToggle:OnChanged(function()
     _G.AutoBoss = Options.AutoBoss.Value
     
     if _G.AutoBoss then
-        -- Disable Auto Farm to prevent conflict
-        if _G.AutoFarm then
-             Options.FarmToggle:SetValue(false)
-             Fluent:Notify({Title = "Mode Switch", Content = "Auto Farm Disabled. Boss Mode Active.", Duration = 3})
-        end
-        
-        -- Reset Flags
+        if _G.AutoFarm then Options.FarmToggle:SetValue(false) end
         HenshinDone = false
         EquipDone = false
         
         task.spawn(function()
             while _G.AutoBoss do
                 local TargetBossName = ""
+                if BossDropdown.Value == "Golem Bugster" then TargetBossName = "Golem Bugster Lv.90"
+                elseif BossDropdown.Value == "Chronos" then TargetBossName = "Cronus Lv.90" end
                 
-                if BossDropdown.Value == "Golem Bugster" then
-                    TargetBossName = "Golem Bugster Lv.90"
-                elseif BossDropdown.Value == "Chronos" then
-                    TargetBossName = "Cronus Lv.90"
-                end
-                
-                -- Detect and Kill
                 if TargetBossName ~= "" then
                     local Boss = LIVES_FOLDER:FindFirstChild(TargetBossName)
                     if Boss then
                         Fluent:Notify({Title = "Boss Found", Content = "Killing " .. TargetBossName, Duration = 2})
                         KillBossByName(TargetBossName)
-                    else
-                        -- Idle / Wait
-                        -- Optional: Tween to spawn point if known, otherwise just wait
-                        -- task.wait(1)
                     end
                 end
                 task.wait(1)
@@ -510,7 +592,6 @@ local FormToggle = Tabs.Main:AddToggle("FormToggle", {Title = "Enable AUTO FORM 
 FormToggle:OnChanged(function() _G.AutoForm = Options.FormToggle.Value end)
 local FormSelect = Tabs.Main:AddDropdown("FormSelect", {Title = "Select Form", Values = {"Survive Bat", "Survival Dragon"}, Multi = false, Default = 1})
 FormSelect:OnChanged(function(Value) _G.FormName = Value end)
-
 
 local SkillSection = Tabs.Main:AddSection("AUTO SKILL")
 local SkillToggle = Tabs.Main:AddToggle("SkillToggle", {Title = "Enable Auto Skill", Default = false })
@@ -543,9 +624,7 @@ FarmToggle:OnChanged(function()
     WarpedToMine = false 
     
     if _G.AutoFarm then
-        -- Disable Boss Mode if active
         if _G.AutoBoss then Options.AutoBoss:SetValue(false) end
-        
         HenshinDone = false 
         EquipDone = false
 
@@ -553,8 +632,17 @@ FarmToggle:OnChanged(function()
             while _G.AutoFarm do
                 while _G.IsTransforming do task.wait(0.5) end
                 
-                -- [LOGIC FOR QUESTS GOES HERE - Same as previous version, re-injecting quest logic]
-                if QuestDropdown.Value == "Mummy (40-80)" then
+                if QuestDropdown.Value == "quest 1-40" then
+                    if _G.AutoQuest then Farm_Yui_Quest() end
+                    if not _G.AutoFarm then break end
+                    KillEnemy("Dragon User Lv.7"); task.wait(ATTACK_SPEED)
+                    if not _G.AutoFarm then break end
+                    KillEnemy("Crab User Lv.10"); task.wait(ATTACK_SPEED)
+                    if not _G.AutoFarm then break end
+                    KillEnemy("Bat User Lv.12")
+                    if _G.AutoQuest and _G.AutoFarm then WaitForQuestCompletion("Dragon's Alliance") end
+                
+                elseif QuestDropdown.Value == "Mummy (40-80)" then
                     local Status = GetWindQuestStatus()
                     if Status == "COMPLETED" or Status == "NONE" then
                         if _G.AutoQuest then Accept_Wind_Quest() end
@@ -562,9 +650,95 @@ FarmToggle:OnChanged(function()
                         if not _G.AutoFarm then break end
                         KillEnemy("Mummy Lv.40")
                     end
-                -- [Add other quests back here: Yui, Auto 40-80, Agito, Miner, Daguba, Zyga]
+                
                 elseif QuestDropdown.Value == "Auto 40-80" then
-                    -- ... (Use Malcom functions) ...
+                    local Status = GetMalcomQuestStatus()
+                    if Status == "COMPLETED" or Status == "NONE" then
+                        if _G.AutoQuest then Accept_Malcom_Quest() end
+                    elseif Status == "ACTIVE" then
+                        if not _G.AutoFarm then break end
+                        local M1 = LIVES_FOLDER:FindFirstChild("Dark Dragon User Lv.40")
+                        local M2 = LIVES_FOLDER:FindFirstChild("Gazelle User Lv.45")
+                        if M1 then KillEnemy("Dark Dragon User Lv.40")
+                        elseif M2 then KillEnemy("Gazelle User Lv.45") end
+                    end
+                
+                elseif QuestDropdown.Value == "Auto Rook&Bishop" then
+                    local Status = GetRookBishopQuestStatus()
+                    if Status == "COMPLETED" or Status == "NONE" then
+                        if _G.AutoQuest then Accept_RookBishop_Quest() end
+                    elseif Status == "ACTIVE" then
+                        if not _G.AutoFarm then break end
+                        Summon_RookBishop()
+                        if not _G.AutoFarm then break end
+                        if LIVES_FOLDER:FindFirstChild("Bishop Lv.80") then KillEnemy("Bishop Lv.80") end
+                        if LIVES_FOLDER:FindFirstChild("Rook Lv.80") then KillEnemy("Rook Lv.80") end
+                    end
+                
+                -- [Other Quest Logic: AGITO, MINER, DAGUBA, ZYGA same as before]
+                -- Re-inserted for completeness
+                 elseif QuestDropdown.Value == "AGITO (Shoichi)" then
+                    local AgitoStatus = Check_Agito_Quest_Active() 
+                    if _G.AutoQuest then
+                        if AgitoStatus == "COMPLETED" or AgitoStatus == "NONE" then Farm_Agito_Quest() end
+                        if Check_Agito_Quest_Active() == "ACTIVE" then
+                            if not _G.AutoFarm then break end
+                            Summon_Agito(); if not _G.AutoFarm then break end
+                            KillEnemy("Agito Lv.90") 
+                            if _G.AutoQuest and _G.AutoFarm then WaitForQuestCompletion("Agito") end
+                        end
+                    else
+                         if not _G.AutoFarm then break end
+                         KillEnemy("Agito Lv.90") 
+                    end
+                elseif QuestDropdown.Value == "Auto Miner Goon" then
+                    -- ... (Miner Logic from previous steps) ...
+                     if CurrentState == "FARMING" then
+                        if QuestCount >= MaxQuests then
+                            CurrentState = "CRAFTING"
+                            RunCraftingRoutine()
+                        else
+                            if not WarpedToMine then
+                                Fluent:Notify({Title = "Status", Content = "Starting... Warping to Mine first!", Duration = 3})
+                                for i=1,5 do WarpTo("Mine's Field"); task.wait(0.2) end
+                                task.wait(3); WarpedToMine = true
+                            end
+                            if _G.AutoQuest then
+                                local Status = GetMinerGoonQuestStatus()
+                                if Status == "COMPLETED" or Status == "NONE" then Accept_MinerGoon_Quest()
+                                elseif Status == "ACTIVE" then
+                                    if not _G.AutoFarm then break end
+                                    KillEnemy("Miner Goon Lv.50")
+                                end
+                            else KillEnemy("Miner Goon Lv.50") end
+                        end
+                    elseif CurrentState == "CRAFTING" then end
+                elseif QuestDropdown.Value == "DAGUBA (Auto Dungeon)" then
+                     -- ... (Daguba Logic) ...
+                     local Status = GetDagubaQuestStatus()
+                    if Status == "COMPLETED" then
+                        CancelMovement()
+                        Fluent:Notify({Title = "Daguba", Content = "Quest Completed! Waiting 20s...", Duration = 5})
+                        for i = 1, 20 do if not _G.AutoFarm then break end task.wait(1) end
+                        if _G.AutoFarm then Accept_Daguba_Quest() end
+                    elseif IsInAncientDungeon() then
+                        Run_Daguba_Sequence(); task.wait(2)
+                    elseif Status == "NONE" then
+                        Accept_Daguba_Quest()
+                    elseif Status == "ACTIVE" then
+                        if not IsEnteringDungeon then
+                            IsEnteringDungeon = true; local DungeonStarted = false
+                            local Con = CLIENT_NOTIFIER.OnClientEvent:Connect(function(Data) if string.find(Data.Text, "Trial of Ancient") and string.find(Data.Text, "Has begun") then DungeonStarted = true end end)
+                            RIDER_TRIAL_EVENT:FireServer("Trial of Ancient"); local T = 0
+                            repeat task.wait(1); T = T + 1 until DungeonStarted or T > 15 or not _G.AutoFarm
+                            if Con then Con:Disconnect() end
+                            if DungeonStarted then task.wait(2); Run_Daguba_Sequence() end
+                            IsEnteringDungeon = false
+                        end
+                        task.wait(2)
+                    end
+                elseif QuestDropdown.Value == "Auto Zyga" then
+                     RunZygaLogic()
                 end
                 
                 task.wait(1)
@@ -582,5 +756,5 @@ InterfaceManager:BuildInterfaceSection(Tabs.Settings)
 SaveManager:BuildConfigSection(Tabs.Settings)
 
 Window:SelectTab(1)
-Fluent:Notify({Title = "Script Loaded", Content = "WORLD BOSS ADDED", Duration = 5})
+Fluent:Notify({Title = "Script Loaded", Content = "SMOOTH BOSS KILL ADDED", Duration = 5})
 SaveManager:LoadAutoloadConfig()
