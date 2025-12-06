@@ -1,5 +1,5 @@
 -- // RIDER WORLD SCRIPT // --
--- // VERSION: SMOOTH BOSS STICKING // --
+-- // VERSION: FIXED AGITO + ALL PREVIOUS FEATURES // --
 
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
@@ -8,7 +8,7 @@ local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.
 -- // 1. WINDOW // --
 local Window = Fluent:CreateWindow({
     Title = "เสี่ยปาล์มขอเงินฟรี",
-    SubTitle = "Smooth Boss Kill",
+    SubTitle = "Fixed Agito & All Auto",
     TabWidth = 160,
     Size = UDim2.fromOffset(580, 460),
     Acrylic = true, 
@@ -104,10 +104,14 @@ local CraftStatusSignal = "IDLE"
 -- LOGIC FLAGS (Reset on Death)
 local HenshinDone = false 
 local EquipDone = false
+local IsRetreating = false -- Safety flag
 
 local AGITO_SAFE_CRAME = CFrame.new(-3516.10425, -1.97061276, -3156.91821, -0.579402685, -7.18338145e-09, 0.815041423, -1.60398237e-08, 1, -2.58899147e-09, -0.815041423, -1.45731889e-08, -0.579402685)
 local AGITO_RETREAT_SPEED = 20 
 local DAGUBA_BOSSES = {"Mighty Rider Lv.90", "Daguba Lv.90", "Empowered Daguba Lv.90"}
+
+-- ROOK & BISHOP VARS
+local ROOK_BISHOP_SUMMON_CF = CFrame.new(4779.29, 8.53, 97.93)
 
 _G.AutoSkill = false
 _G.FormName = "Survive Bat"
@@ -121,12 +125,10 @@ local function GetRootPart()
     return Character:FindFirstChild("HumanoidRootPart")
 end
 
--- UPDATED: TweenTo now works if EITHER AutoFarm OR AutoBoss is on
 local function TweenTo(TargetCFrame, CustomSpeed)
     local RootPart = GetRootPart()
     if not RootPart then return end
     
-    -- Pause movement if we are mid-transformation
     while _G.IsTransforming and (_G.AutoFarm or _G.AutoBoss) do task.wait(0.5) end
     if not (_G.AutoFarm or _G.AutoBoss) then return end
     
@@ -155,7 +157,6 @@ local function CancelMovement()
     if Root then Root.Velocity = Vector3.zero end
 end
 
--- UPDATED: Attack functions work for both modes
 local function FireAttack()
     if _G.IsTransforming or not (_G.AutoFarm or _G.AutoBoss) then return end
     local Character = LocalPlayer.Character
@@ -233,7 +234,7 @@ end)
 -- // AUTO FORM LOOP (X) // --
 task.spawn(function()
     while task.wait(1) do
-        if _G.AutoForm and not _G.IsTransforming and not _G.QuestingMode then
+        if _G.AutoForm and not _G.IsTransforming and not _G.QuestingMode and not IsRetreating then
             FireSkill("X")
         end
     end
@@ -246,7 +247,7 @@ CLIENT_NOTIFIER.OnClientEvent:Connect(function(Data)
     if type(Data) == "table" and Data.Text then 
         local txt = string.lower(Data.Text)
         
-        if _G.AutoForm and string.find(txt, "transform") then
+        if _G.AutoForm and string.find(txt, "transform") and not IsRetreating then
             if not _G.IsTransforming then
                 _G.IsTransforming = true 
                 Fluent:Notify({Title = "AUTO FORM", Content = "Transforming... Pausing 9s", Duration = 5})
@@ -269,6 +270,7 @@ end)
 LocalPlayer.CharacterAdded:Connect(function()
     HenshinDone = false
     EquipDone = false
+    IsRetreating = false
 end)
 
 -- // EQUIP & HENSHIN // --
@@ -326,46 +328,37 @@ local function GetNearestTarget(EnemyName)
     return NearestMob
 end
 
--- // SMOOTH BOSS KILLING FUNCTION (UPDATED) // --
+-- // SMOOTH BOSS KILLING FUNCTION // --
 local function KillBossByName(BossName)
     if not _G.AutoBoss then return end
     while _G.IsTransforming and _G.AutoBoss do task.wait(0.5) end
     
-    -- Find specific boss
     local Target = LIVES_FOLDER:FindFirstChild(BossName)
     if not Target then return end
 
     if Target then
-        -- 1. Initial Tween to get close
         if Target:FindFirstChild("HumanoidRootPart") then
              TweenTo(Target.HumanoidRootPart.CFrame * CFrame.new(0, 2, _G.AttackDist), 60)
         end
         
-        -- 2. SMOOTH STICKER (Using Heartbeat, like KillEnemy)
         local Sticker
         Sticker = RunService.Heartbeat:Connect(function()
             local MyRoot = GetRootPart()
             if not MyRoot then return end
-            
-            -- Validation: Check if boss still exists and we are farming
             if _G.AutoBoss and Target and Target.Parent == LIVES_FOLDER and Target:FindFirstChild("HumanoidRootPart") and Target.Humanoid.Health > 0 then
                 if not _G.IsTransforming then
-                    local EnemyCFrame = Target.HumanoidRootPart.CFrame
-                    -- This uses the exact same math as KillEnemy to ensure it's smooth
-                    local BehindPosition = EnemyCFrame * CFrame.new(0, HEIGHT_OFFSET, _G.AttackDist)
-                    MyRoot.CFrame = CFrame.new(BehindPosition.Position, EnemyCFrame.Position)
+                    local EnemyCF = Target.HumanoidRootPart.CFrame
+                    local BehindPosition = EnemyCF * CFrame.new(0, HEIGHT_OFFSET, _G.AttackDist)
+                    MyRoot.CFrame = CFrame.new(BehindPosition.Position, EnemyCF.Position)
                     MyRoot.Velocity = Vector3.zero
                 end
             else
-                -- Disconnect if target dead or farm off
                 if Sticker then Sticker:Disconnect() end
             end
         end)
         
-        -- 3. COMBAT LOOP
         while _G.AutoBoss and Target.Parent == LIVES_FOLDER do
             if not Target:FindFirstChild("HumanoidRootPart") or Target.Humanoid.Health <= 0 then break end
-            
             if _G.IsTransforming then 
                 repeat task.wait(0.2) until not _G.IsTransforming 
             else 
@@ -373,13 +366,80 @@ local function KillBossByName(BossName)
             end
             task.wait(ATTACK_SPEED)
         end
-        
-        -- Cleanup
         if Sticker then Sticker:Disconnect() end
     end
 end
 
--- // FARM LOGIC FUNCTIONS // --
+-- // AGITO QUEST FUNCTIONS // --
+local function Check_Agito_Quest_Active()
+    local PlayerGui = LocalPlayer:FindFirstChild("PlayerGui")
+    if PlayerGui then
+        local GUI = PlayerGui.Main.QuestAlertFrame.QuestGUI
+        local QuestFrame = GUI:FindFirstChild("Agito's Rules")
+        if QuestFrame and QuestFrame.Visible then
+            local Label = QuestFrame:FindFirstChild("TextLabel")
+            if Label and string.find(Label.Text, "Completed") then return "COMPLETED" else return "ACTIVE" end
+        end
+    end
+    return "NONE"
+end
+
+local function Farm_Agito_Quest()
+    if _G.IsTransforming or not _G.AutoFarm then return end
+    if Check_Agito_Quest_Active() == "ACTIVE" then return end
+
+    local NPC_Agito = Workspace:WaitForChild("NPC"):FindFirstChild("Shoichi")
+    if NPC_Agito then
+        -- !!! FIXED CRASH: CHECK TORSO CORRECTLY !!!
+        local AgitoPart = NPC_Agito:FindFirstChild("HumanoidRootPart") or NPC_Agito:FindFirstChild("Torso")
+        
+        if AgitoPart then
+            _G.QuestingMode = true
+            TweenTo(AgitoPart.CFrame * CFrame.new(0, 0, 3))
+            task.wait(0.2)
+            if not _G.AutoFarm then _G.QuestingMode = false; return end 
+            
+            for _, desc in pairs(NPC_Agito:GetDescendants()) do
+                if desc:IsA("ClickDetector") then fireclickdetector(desc) elseif desc:IsA("ProximityPrompt") then fireproximityprompt(desc) end
+            end
+            task.wait(0.5)
+
+            local MaxTries = 0
+            while _G.AutoFarm and Check_Agito_Quest_Active() ~= "ACTIVE" and MaxTries < 3 do
+                DIALOGUE_EVENT:FireServer({Choice = "Yes, I've completed it."})
+                task.wait(0.3)
+                DIALOGUE_EVENT:FireServer({Choice = "Can I get another quest?"})
+                task.wait(0.3)
+                DIALOGUE_EVENT:FireServer({Choice = "[ Challenge ]"})
+                task.wait(0.3)
+                DIALOGUE_EVENT:FireServer({Choice = "[ Quest ]"})
+                task.wait(0.3)
+                DIALOGUE_EVENT:FireServer({Exit = true})
+                task.wait(1)
+                MaxTries = MaxTries + 1
+            end
+            _G.QuestingMode = false
+        end
+    end
+end
+
+local function Summon_Agito()
+    if _G.IsTransforming or not _G.AutoFarm then return end
+    if LIVES_FOLDER:FindFirstChild("Agito Lv.90") then return end
+    
+    local Stone = Workspace.KeyItem.Spawn:FindFirstChild("AgitoStone")
+    if Stone then
+        TweenTo(Stone.CFrame * CFrame.new(0, 0, 3))
+        task.wait(0.2)
+        local Prompt = Stone:FindFirstChild("ProximityPrompt")
+        if Prompt then 
+            fireproximityprompt(Prompt)
+            task.wait(1.5) 
+        end
+    end
+end
+
+-- // FARM LOGIC // --
 
 local function KillEnemy(EnemyName)
     if not _G.AutoFarm then return end
@@ -404,16 +464,17 @@ local function KillEnemy(EnemyName)
             end
             
             if Target.Humanoid.Health > 0 and _G.AutoFarm and LIVES_FOLDER:FindFirstChild(EnemyName) and not _G.IsTransforming then
+                IsRetreating = true
                 TweenTo(AGITO_SAFE_CRAME, AGITO_RETREAT_SPEED)
-                if not _G.AutoFarm then return end
+                if not _G.AutoFarm then IsRetreating = false; return end
                 task.wait(4)
+                IsRetreating = false
                 TweenTo(Target.HumanoidRootPart.CFrame * CFrame.new(0, 2, _G.AttackDist))
             end
         else
             TweenTo(Target.HumanoidRootPart.CFrame * CFrame.new(0, 2, _G.AttackDist))
         end
         
-        -- SMOOTH STICKER FOR FARMING
         local Sticker
         Sticker = RunService.Heartbeat:Connect(function()
             local MyRoot = GetRootPart()
@@ -437,8 +498,24 @@ local function KillEnemy(EnemyName)
     end
 end
 
--- [Quest Functions omitted for brevity, they remain the same]
--- RE-ADDING NECESSARY FUNCTIONS TO ENSURE FULL CODE IS RUNNABLE
+-- [Re-adding other quest functions for completeness]
+local function WaitForQuestCompletion(QuestNameKeyword)
+    if not _G.AutoFarm then return end
+    local Timeout = 0
+    while _G.AutoFarm and Timeout < 10 do
+        local PlayerGui = LocalPlayer:FindFirstChild("PlayerGui")
+        if PlayerGui then
+            local GUI = PlayerGui.Main.QuestAlertFrame.QuestGUI
+            for _, child in pairs(GUI:GetChildren()) do
+                if string.find(child.Name, QuestNameKeyword) and child:FindFirstChild("TextLabel") and string.find(child.TextLabel.Text, "Completed") then
+                    return 
+                end
+            end
+        end
+        Timeout = Timeout + 1
+        task.wait(1)
+    end
+end
 local function GetWindQuestStatus()
     local GUI = LocalPlayer.PlayerGui.Main.QuestAlertFrame.QuestGUI
     if GUI:FindFirstChild("Mummy Return?") and GUI["Mummy Return?"].Visible then
@@ -469,7 +546,6 @@ local function Accept_Wind_Quest()
         task.wait(1); _G.QuestingMode = false
     end
 end
-
 local function GetMalcomQuestStatus()
     local GUI = LocalPlayer.PlayerGui.Main.QuestAlertFrame.QuestGUI
     if GUI:FindFirstChild("The Hunt Hunted") and GUI["The Hunt Hunted"].Visible then
@@ -500,7 +576,6 @@ local function Accept_Malcom_Quest()
         task.wait(1); _G.QuestingMode = false
     end
 end
-local ROOK_BISHOP_SUMMON_CF = CFrame.new(4779.29, 8.53, 97.93)
 local function GetRookBishopQuestStatus()
     local GUI = LocalPlayer.PlayerGui.Main.QuestAlertFrame.QuestGUI
     if GUI:FindFirstChild("Double or Solo") and GUI["Double or Solo"].Visible then
@@ -530,6 +605,152 @@ local function Summon_RookBishop()
         end
     end
     task.wait(1.5)
+end
+
+local function GetMinerGoonQuestStatus()
+    local GUI = LocalPlayer.PlayerGui.Main.QuestAlertFrame.QuestGUI
+    if GUI:FindFirstChild("Find Diamond?") and GUI["Find Diamond?"].Visible then
+        return string.find(GUI["Find Diamond?"].TextLabel.Text, "Completed") and "COMPLETED" or "ACTIVE"
+    end
+    return "NONE"
+end
+local function Accept_MinerGoon_Quest()
+    while _G.IsTransforming do task.wait(1) end
+    local NPC = Workspace.NPC:FindFirstChild("LeeTheMiner")
+    if NPC then
+        TweenTo(NPC.HumanoidRootPart.CFrame * CFrame.new(0,0,3))
+        fireclickdetector(NPC.ClickDetector)
+        task.wait(1)
+        local Status = GetMinerGoonQuestStatus()
+        if Status == "NONE" then
+             DIALOGUE_EVENT:FireServer({Choice = "[ Quest ]"}); task.wait(0.5)
+             DIALOGUE_EVENT:FireServer({Choice = "[ Repeatable ]"}); task.wait(0.5)
+             DIALOGUE_EVENT:FireServer({Choice = "Okay"}); task.wait(0.5)
+             DIALOGUE_EVENT:FireServer({Exit = true})
+        elseif Status == "COMPLETED" then
+             DIALOGUE_EVENT:FireServer({Choice = "Yes, I've done it."}); task.wait(0.5)
+             DIALOGUE_EVENT:FireServer({Choice = "Okay"}); task.wait(0.5)
+             DIALOGUE_EVENT:FireServer({Exit = true})
+             QuestCount = QuestCount + 1
+             Fluent:Notify({Title = "Progress", Content = "Quest: " .. tostring(QuestCount) .. " / " .. tostring(MaxQuests), Duration = 3})
+        end
+        task.wait(1); _G.QuestingMode = false
+    end
+end
+local function CloseCraftingGUI()
+    local GUI = LocalPlayer.PlayerGui:FindFirstChild("CraftingGUI")
+    if GUI then
+        local ExitBtn = GUI:FindFirstChild("Exit") 
+        if ExitBtn then
+            if VirtualInputManager then
+                 VirtualInputManager:SendMouseButtonEvent(ExitBtn.AbsolutePosition.X+10, ExitBtn.AbsolutePosition.Y+10, 0, true, game, 1)
+                 task.wait(0.05)
+                 VirtualInputManager:SendMouseButtonEvent(ExitBtn.AbsolutePosition.X+10, ExitBtn.AbsolutePosition.Y+10, 0, false, game, 1)
+            end
+            for _, c in pairs(getconnections(ExitBtn.MouseButton1Click)) do c:Fire() end
+        end
+        DIALOGUE_EVENT:FireServer({Exit = true})
+    end
+    local Char = LocalPlayer.Character
+    if Char and Char:FindFirstChild("HumanoidRootPart") then Char.HumanoidRootPart.Anchored = false end
+end
+local function RunCraftingRoutine()
+    WarpTo("Rider's Center"); Fluent:Notify({Title = "Crafting", Content = "Warping...", Duration = 3})
+    task.wait(6)
+    local NPC = Workspace.NPC:FindFirstChild("UniversalCrafting")
+    if NPC then
+        TweenTo(NPC.HumanoidRootPart.CFrame * CFrame.new(0,0,3))
+        fireclickdetector(NPC.ClickDetector); task.wait(1)
+        DIALOGUE_EVENT:FireServer({Choice = "[ Craft ]"}); task.wait(1)
+        CraftStatusSignal = "IDLE"
+        local Con = CRAFTING_EVENT.OnClientEvent:Connect(function(Data)
+            if type(Data) == "table" and Data.Callback then
+                local msg = string.lower(Data.Callback)
+                if string.find(msg, "limit") or string.find(msg, "max") then CraftStatusSignal = "MAX"
+                elseif string.find(msg, "not enough") then CraftStatusSignal = "EMPTY" end
+            end
+        end)
+        local Start = tick()
+        local Items = {"Blue Fragment", "Red Fragment", "Blue Sappyre", "Red Emperor"}
+        local Stop = false
+        for _, Item in ipairs(Items) do
+            if not _G.AutoFarm or Stop then break end
+            local Active = true
+            local Att = 0
+            while _G.AutoFarm and Active do
+                CraftStatusSignal = "IDLE"
+                CRAFTING_EVENT:FireServer("Special", Item); task.wait(0.3); Att = Att + 1
+                if CraftStatusSignal == "MAX" then Active = false
+                elseif CraftStatusSignal == "EMPTY" then Active = false; Stop = true
+                elseif Att > 20 then Active = false end
+                if (tick() - Start) > 60 then Stop = true; break end
+            end
+        end
+        if Con then Con:Disconnect() end
+        CloseCraftingGUI(); task.wait(1)
+        CurrentState = "FARMING"; QuestCount = 0; WarpedToMine = false
+        Fluent:Notify({Title = "Return", Content = "Respawning to Clear UI...", Duration = 3})
+        if LocalPlayer.Character then LocalPlayer.Character.Humanoid.Health = 0 end
+        LocalPlayer.CharacterAdded:Wait(); task.wait(2)
+        for i=1,5 do WarpTo("Mine's Field"); task.wait(0.5) end
+        task.wait(1)
+    end
+end
+local function Farm_Yui_Quest()
+    if _G.IsTransforming then return end
+    local NPC = Workspace.NPC:FindFirstChild("Yui")
+    if NPC then
+        TweenTo(NPC.HumanoidRootPart.CFrame * CFrame.new(0,0,3))
+        fireclickdetector(NPC.ClickDetector); task.wait(1)
+        DIALOGUE_EVENT:FireServer({Choice = "Yes, I've completed it."}); task.wait(0.3)
+        DIALOGUE_EVENT:FireServer({Choice = "Can I get another quest?"}); task.wait(0.3)
+        DIALOGUE_EVENT:FireServer({Choice = "Dragon's Alliance"}); task.wait(0.3)
+        DIALOGUE_EVENT:FireServer({Choice = "Start 'Dragon's Alliance'"}); task.wait(0.3)
+        DIALOGUE_EVENT:FireServer({Exit = true}); task.wait(0.3)
+        _G.QuestingMode = false
+    end
+end
+local function GetDagubaQuestStatus()
+    local GUI = LocalPlayer.PlayerGui.Main.QuestAlertFrame.QuestGUI
+    if GUI:FindFirstChild("Ancient Argument") and GUI["Ancient Argument"].Visible then
+        return string.find(GUI["Ancient Argument"].TextLabel.Text, "Completed") and "COMPLETED" or "ACTIVE"
+    end
+    return "NONE"
+end
+local function Accept_Daguba_Quest()
+    local NPC = Workspace.NPC:FindFirstChild("DojoStudent")
+    if NPC then
+        TweenTo(NPC.HumanoidRootPart.CFrame * CFrame.new(0,0,3))
+        fireclickdetector(NPC.ClickDetector); task.wait(1)
+        local Status = GetDagubaQuestStatus()
+        if Status == "NONE" or Status == "COMPLETED" then
+             DIALOGUE_EVENT:FireServer({Choice = "Yes, I've completed it."}); task.wait(0.5)
+             DIALOGUE_EVENT:FireServer({Choice = "Can I get another quest?"}); task.wait(0.5)
+             DIALOGUE_EVENT:FireServer({Choice = "Sure.."}); task.wait(0.5)
+             DIALOGUE_EVENT:FireServer({Choice = "Ancient Argument"}); task.wait(0.5)
+             DIALOGUE_EVENT:FireServer({Choice = "Start 'Ancient Argument'"}); task.wait(0.5)
+             DIALOGUE_EVENT:FireServer({Exit = true})
+        end
+        task.wait(1); _G.QuestingMode = false
+    end
+end
+local function Run_Daguba_Sequence()
+    local Trial = Workspace.KeyItem:FindFirstChild("Trial")
+    if Trial then
+        local Targets = {Trial:GetChildren()[3], Trial:FindFirstChild("Part"), Trial:GetChildren()[2]}
+        for _, Target in ipairs(Targets) do
+             if not _G.AutoFarm then return end
+             if Target then
+                  local Part = Target:IsA("BasePart") and Target or Target:FindFirstChildWhichIsA("BasePart", true)
+                  if Part then
+                       TweenTo(Part.CFrame * CFrame.new(0,0,3))
+                       local P = Target:FindFirstChildWhichIsA("ProximityPrompt", true)
+                       if P then fireproximityprompt(P); task.wait(1) end
+                       Clear_Daguba_Room()
+                  end
+             end
+        end
+    end
 end
 
 -- // UI ELEMENTS // --
@@ -675,8 +896,6 @@ FarmToggle:OnChanged(function()
                         if LIVES_FOLDER:FindFirstChild("Rook Lv.80") then KillEnemy("Rook Lv.80") end
                     end
                 
-                -- [Other Quest Logic: AGITO, MINER, DAGUBA, ZYGA same as before]
-                -- Re-inserted for completeness
                  elseif QuestDropdown.Value == "AGITO (Shoichi)" then
                     local AgitoStatus = Check_Agito_Quest_Active() 
                     if _G.AutoQuest then
@@ -692,7 +911,6 @@ FarmToggle:OnChanged(function()
                          KillEnemy("Agito Lv.90") 
                     end
                 elseif QuestDropdown.Value == "Auto Miner Goon" then
-                    -- ... (Miner Logic from previous steps) ...
                      if CurrentState == "FARMING" then
                         if QuestCount >= MaxQuests then
                             CurrentState = "CRAFTING"
@@ -714,7 +932,6 @@ FarmToggle:OnChanged(function()
                         end
                     elseif CurrentState == "CRAFTING" then end
                 elseif QuestDropdown.Value == "DAGUBA (Auto Dungeon)" then
-                     -- ... (Daguba Logic) ...
                      local Status = GetDagubaQuestStatus()
                     if Status == "COMPLETED" then
                         CancelMovement()
@@ -756,5 +973,5 @@ InterfaceManager:BuildInterfaceSection(Tabs.Settings)
 SaveManager:BuildConfigSection(Tabs.Settings)
 
 Window:SelectTab(1)
-Fluent:Notify({Title = "Script Loaded", Content = "SMOOTH BOSS KILL ADDED", Duration = 5})
+Fluent:Notify({Title = "Script Loaded", Content = "FIXED AGITO & ALL FEATURES", Duration = 5})
 SaveManager:LoadAutoloadConfig()
