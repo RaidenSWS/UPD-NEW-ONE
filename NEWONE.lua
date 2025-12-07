@@ -1,5 +1,5 @@
 -- // RIDER WORLD SCRIPT // --
--- // VERSION: DAGUBA SPAWN DELAY + QUEST LOGIC FIXED // --
+-- // VERSION: DAGUBA FIXED + ALL FEATURES // --
 
 print("Script Loading...")
 
@@ -10,7 +10,7 @@ local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.
 -- // 1. WINDOW // --
 local Window = Fluent:CreateWindow({
     Title = "เสี่ยปาล์มขอเงินฟรี",
-    SubTitle = "Daguba Fixed v3",
+    SubTitle = "Daguba Fix + All",
     TabWidth = 160,
     Size = UDim2.fromOffset(580, 460),
     Acrylic = true, 
@@ -323,9 +323,18 @@ end
 task.spawn(function()
     while task.wait(1) do
         if _G.AutoForm and not _G.IsTransforming and not _G.QuestingMode and not IsRetreating then
+            
+            -- BOSS CHECK
             local ShouldTransform = true
-            if _G.AutoBoss and not IsBossPresent() then ShouldTransform = false end
-            if ShouldTransform then FireSkill("X") end
+            if _G.AutoBoss then
+                if not IsBossPresent() then
+                    ShouldTransform = false 
+                end
+            end
+            
+            if ShouldTransform then
+                FireSkill("X")
+            end
         end
     end
 end)
@@ -642,6 +651,7 @@ local function Summon_RookBishop()
     end
     task.wait(1.5)
 end
+
 local function GetMinerGoonQuestStatus()
     local GUI = LocalPlayer.PlayerGui.Main.QuestAlertFrame.QuestGUI
     if GUI:FindFirstChild("Find Diamond?") and GUI["Find Diamond?"].Visible then
@@ -730,6 +740,58 @@ local function RunCraftingRoutine()
         task.wait(1)
     end
 end
+local function Farm_Yui_Quest()
+    if _G.IsTransforming then return end
+    local NPC = Workspace.NPC:FindFirstChild("Yui")
+    if NPC then
+        TweenTo(NPC.HumanoidRootPart.CFrame * CFrame.new(0,0,3))
+        fireclickdetector(NPC.ClickDetector); task.wait(1)
+        DIALOGUE_EVENT:FireServer({Choice = "Yes, I've completed it."}); task.wait(0.3)
+        DIALOGUE_EVENT:FireServer({Choice = "Can I get another quest?"}); task.wait(0.3)
+        DIALOGUE_EVENT:FireServer({Choice = "Dragon's Alliance"}); task.wait(0.3)
+        DIALOGUE_EVENT:FireServer({Choice = "Start 'Dragon's Alliance'"}); task.wait(0.3)
+        DIALOGUE_EVENT:FireServer({Exit = true}); task.wait(0.3)
+        _G.QuestingMode = false
+    end
+end
+local function Check_Agito_Quest_Active()
+    local GUI = LocalPlayer.PlayerGui.Main.QuestAlertFrame.QuestGUI
+    if GUI:FindFirstChild("Agito's Rules") and GUI["Agito's Rules"].Visible then
+        return string.find(GUI["Agito's Rules"].TextLabel.Text, "Completed") and "COMPLETED" or "ACTIVE"
+    end return "NONE"
+end
+local function Farm_Agito_Quest()
+    if _G.IsTransforming or not _G.AutoFarm then return end
+    if Check_Agito_Quest_Active() == "ACTIVE" then return end
+    local NPC = Workspace.NPC:FindFirstChild("Shoichi")
+    if not NPC then NPC = Workspace.NPC:WaitForChild("Shoichi", 5) end
+
+    if NPC then
+        local Part = NPC:FindFirstChild("HumanoidRootPart") or NPC:FindFirstChild("Torso")
+        if Part then
+             TweenTo(Part.CFrame * CFrame.new(0,0,3)); task.wait(0.2)
+             fireclickdetector(NPC.ClickDetector); task.wait(0.5)
+             DIALOGUE_EVENT:FireServer({Choice = "Yes, I've completed it."}); task.wait(0.3)
+             DIALOGUE_EVENT:FireServer({Choice = "Can I get another quest?"}); task.wait(0.3)
+             DIALOGUE_EVENT:FireServer({Choice = "[ Challenge ]"}); task.wait(0.3)
+             DIALOGUE_EVENT:FireServer({Choice = "[ Quest ]"}); task.wait(0.3)
+             DIALOGUE_EVENT:FireServer({Exit = true}); task.wait(1)
+             _G.QuestingMode = false
+        end
+    end
+end
+local function Summon_Agito()
+    if _G.IsTransforming or not _G.AutoFarm then return end
+    if LIVES_FOLDER:FindFirstChild("Agito Lv.90") then return end
+    if Workspace:FindFirstChild("KeyItem") and Workspace.KeyItem:FindFirstChild("Spawn") then
+        local Stone = Workspace.KeyItem.Spawn:FindFirstChild("AgitoStone")
+        if Stone then
+             TweenTo(Stone.CFrame * CFrame.new(0,0,3)); task.wait(0.2)
+             local P = Stone:FindFirstChild("ProximityPrompt")
+             if P then fireproximityprompt(P); task.wait(1.5) end
+        end
+    end
+end
 
 -- // DAGUBA FIX // --
 local function GetDagubaQuestStatus()
@@ -738,6 +800,7 @@ local function GetDagubaQuestStatus()
         return string.find(GUI["Ancient Argument"].TextLabel.Text, "Completed") and "COMPLETED" or "ACTIVE"
     end return "NONE"
 end
+
 local function Accept_Daguba_Quest()
     local NPC = Workspace.NPC:FindFirstChild("DojoStudent")
     if NPC then
@@ -755,6 +818,7 @@ local function Accept_Daguba_Quest()
         task.wait(1); _G.QuestingMode = false
     end
 end
+
 local function Kill_Mob_Daguba(Target)
     local RootPart = GetRootPart(); local Hum = Target:FindFirstChild("Humanoid"); local HRP = Target:FindFirstChild("HumanoidRootPart")
     if not Hum or not HRP or not RootPart then return end
@@ -779,7 +843,20 @@ local function Kill_Mob_Daguba(Target)
     end
     if Sticker then Sticker:Disconnect() end
 end
+
 local function Clear_Daguba_Room()
+    -- 1. WAIT FOR SPAWN
+    local StartWait = tick()
+    while _G.AutoFarm and (tick() - StartWait < 5) do 
+        local found = false
+        for _, name in pairs(DAGUBA_BOSSES) do
+            if LIVES_FOLDER:FindFirstChild(name) then found = true; break end
+        end
+        if found then break end
+        task.wait(0.2)
+    end
+    
+    -- 2. KILL
     while _G.AutoFarm do
         local EnemyFound = false
         for _, Name in ipairs(DAGUBA_BOSSES) do
@@ -794,6 +871,12 @@ local function Clear_Daguba_Room()
         task.wait(0.5)
     end
 end
+
+local function IsInAncientDungeon()
+    if Workspace:FindFirstChild("MAP") and Workspace.MAP:FindFirstChild("Trial") and Workspace.MAP.Trial:FindFirstChild("Trial - Zone") and Workspace.MAP.Trial["Trial - Zone"]:FindFirstChild("Trial of Ancient") then return true end
+    return false
+end
+
 local function Run_Daguba_Sequence()
     local Trial = Workspace.KeyItem:FindFirstChild("Trial")
     if Trial then
@@ -1078,5 +1161,5 @@ InterfaceManager:BuildInterfaceSection(Tabs.Settings)
 SaveManager:BuildConfigSection(Tabs.Settings)
 
 Window:SelectTab(1)
-Fluent:Notify({Title = "Script Loaded", Content = "FAIZ STAMINA + DAGUBA FIX", Duration = 5})
+Fluent:Notify({Title = "Script Loaded", Content = "DAGUBA BOSS KILL & QUEST DETECT FIX", Duration = 5})
 SaveManager:LoadAutoloadConfig()
