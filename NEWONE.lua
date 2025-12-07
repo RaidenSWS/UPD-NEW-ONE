@@ -1,5 +1,5 @@
 -- // RIDER WORLD SCRIPT // --
--- // VERSION: FAIZ BLASTER MODE DETECTION // --
+-- // VERSION: FAIZ STAMINA THRESHOLDS (500/1300) // --
 
 print("Script Loading...")
 
@@ -10,7 +10,7 @@ local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.
 -- // 1. WINDOW // --
 local Window = Fluent:CreateWindow({
     Title = "เสี่ยปาล์มขอเงินฟรี",
-    SubTitle = "Faiz Mode Detect",
+    SubTitle = "Faiz Stamina Logic",
     TabWidth = 160,
     Size = UDim2.fromOffset(580, 460),
     Acrylic = true, 
@@ -240,7 +240,7 @@ local function DoCombat()
     end
 end
 
--- // COMBO LOGIC // --
+-- // COMBO LOGIC (STAMINA THRESHOLD FIXED) // --
 local function CheckFaizMode()
     local success, result = pcall(function()
         local cdText = LocalPlayer.PlayerGui.Main.PreviewCore.CD_TEXT
@@ -252,24 +252,44 @@ local function CheckFaizMode()
     return success and result
 end
 
+local function GetStamina()
+    local stats = LocalPlayer:FindFirstChild("RiderStats")
+    if stats and stats:FindFirstChild("Stamina") then
+        return stats.Stamina.Value
+    end
+    return 0
+end
+
 local function RunCombo(Target)
     if not Target or not Target:FindFirstChild("Humanoid") or Target.Humanoid.Health <= 0 then return end
     
     if _G.ComboName == "Faiz Blaster" then
-        -- Check Mode First
+        -- Check Mode (UI)
         if CheckFaizMode() then
-            -- BLASTER COMBO
-            FireSkill("V"); task.wait(0.2)
-            if not Target.Parent then return end
-            FireSkill("R"); task.wait(0.2)
+            -- BLASTER COMBO LOGIC
+            local stamina = GetStamina()
             
-            for i=1, 5 do 
+            -- Always M1
+            FireAttack()
+            task.wait(0.1)
+            
+            -- If Stamina > 500, Use R
+            if stamina > 500 then
+                FireSkill("R")
+                task.wait(0.2)
+                
+                -- If Stamina > 1300, Use E
+                if stamina > 1300 then
+                    FireSkill("E")
+                    task.wait(0.2)
+                end
+            end
+            
+            -- M1 Burst filler
+            for i=1, 3 do 
                 FireAttack()
                 task.wait(0.1)
             end
-            
-            if not Target.Parent then return end
-            FireSkill("E"); task.wait(0.2)
         else
             -- NORMAL MODE -> Use Normal Auto Skill
             DoCombat()
