@@ -1,5 +1,5 @@
 -- // RIDER WORLD SCRIPT // --
--- // VERSION: DAGUBA QUEST STATUS CHECK RESTORED + FAIZ BLASTER LOGIC // --
+-- // VERSION: DAGUBA + FAIZ BLASTER (V -> R PRIORITY) // --
 
 print("Script Loading...")
 
@@ -246,20 +246,37 @@ local function RunCombo(Target)
     
     if _G.ComboName == "Faiz Blaster" then
         -- // FAIZ BLASTER CUSTOM LOGIC // --
+        
+        -- CHECK 1: CombatText Visibility (Anti-Stun/Block Check)
+        local PlayerGui = LocalPlayer:FindFirstChild("PlayerGui")
+        local CombatText = PlayerGui and PlayerGui:FindFirstChild("Main") and PlayerGui.Main:FindFirstChild("CombatText")
+        
+        if CombatText and CombatText.Visible == true then
+            -- Logic: If CombatText is visible, JUST SPAM M1 (return early to loop again)
+            FireAttack()
+            return 
+        end
+
+        -- CHECK 2: Stamina Check
         local RiderStats = LocalPlayer:FindFirstChild("RiderStats")
         local StaminaStat = RiderStats and RiderStats:FindFirstChild("Stamina")
         local CurrentStamina = StaminaStat and StaminaStat.Value or 0
 
-        -- CONDITION 1: Low Stamina (< 500) -> Just M1
+        -- Logic: Low Stamina (< 500) -> Just M1
         if CurrentStamina < 500 then
             FireAttack()
             return -- Exit to loop again (Just M1 until > 500)
         end
 
-        -- CONDITION 2: Healthy Stamina -> Run Combo
-        FireSkill("V"); task.wait(0.2)
+        -- Logic: Healthy Stamina -> Run Combo
+        -- PRIORITY: V then R
+        FireSkill("V") 
+        task.wait(0.15) -- Fast switch
+        
         if not Target.Parent then return end
-        FireSkill("R"); task.wait(0.2)
+        
+        FireSkill("R")
+        task.wait(0.15) -- Fast switch
         
         for i=1, 5 do 
             FireAttack()
@@ -268,7 +285,7 @@ local function RunCombo(Target)
         
         if not Target.Parent then return end
         
-        -- CONDITION 3: Check "E" (Only if >= 1300)
+        -- Logic: Check "E" (Only if >= 1300)
         local CurrentStaminaNow = StaminaStat and StaminaStat.Value or 0
         if CurrentStaminaNow >= 1300 then
             FireSkill("E"); task.wait(0.2)
