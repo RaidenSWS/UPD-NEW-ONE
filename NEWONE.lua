@@ -1,5 +1,5 @@
 -- // RIDER WORLD SCRIPT // --
--- // VERSION: DAGUBA FIXED + ALL FEATURES // --
+-- // VERSION: FAIZ BLASTER FAST SPAM FIX // --
 
 print("Script Loading...")
 
@@ -10,7 +10,7 @@ local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.
 -- // 1. WINDOW // --
 local Window = Fluent:CreateWindow({
     Title = "เสี่ยปาล์มขอเงินฟรี",
-    SubTitle = "Daguba Fix + All",
+    SubTitle = "Faiz Fast Spam",
     TabWidth = 160,
     Size = UDim2.fromOffset(580, 460),
     Acrylic = true, 
@@ -240,15 +240,17 @@ local function DoCombat()
     end
 end
 
--- // COMBO LOGIC // --
+-- // COMBO HELPER FUNCTIONS // --
 local function CheckFaizMode()
     local isMode = false
+    -- 1. Check UI Text (Mode Active?)
     pcall(function()
         local cdText = LocalPlayer.PlayerGui.Main.PreviewCore.CD_TEXT
         if cdText and cdText.Visible and cdText.Text ~= "" then
             isMode = true
         end
     end)
+    -- 2. Safety Stamina Check
     if isMode then
         local Stats = LocalPlayer:FindFirstChild("RiderStats")
         if Stats and Stats:FindFirstChild("Stamina") and Stats.Stamina.Value <= 0 then
@@ -266,23 +268,49 @@ local function GetStamina()
     return 0
 end
 
+local function CheckCombatText()
+    local success, visible = pcall(function()
+        return LocalPlayer.PlayerGui.Main.CombatText.Visible
+    end)
+    return success and visible
+end
+
+-- // UPDATED COMBO LOGIC // --
 local function RunCombo(Target)
     if not Target or not Target:FindFirstChild("Humanoid") or Target.Humanoid.Health <= 0 then return end
     
     if _G.ComboName == "Faiz Blaster" then
         if CheckFaizMode() then
-            local stamina = GetStamina()
-            FireAttack(); task.wait(0.1)
-            
-            if stamina > 500 then
-                FireSkill("R"); task.wait(0.2)
-                if stamina > 1300 then
-                    FireSkill("E"); task.wait(0.2)
+            -- NEW CHECK: If CombatText is visible, JUST M1
+            if CheckCombatText() then
+                 -- Visible == True that mean Spam M1
+                 FireAttack()
+                 task.wait() -- FAST SPAM
+            else
+                 -- Visible == False -> Use Skills (V Priority)
+                 
+                 -- 1. USE SKILL V FIRST (Priority)
+                FireSkill("V")
+                task.wait(0.15)
+                
+                -- 2. CHECK STAMINA FOR R AND E
+                local stamina = GetStamina()
+                
+                if stamina > 500 then
+                    FireSkill("R"); task.wait(0.15)
+                    if stamina > 1300 then
+                        FireSkill("E"); task.wait(0.15)
+                    end
+                end
+                
+                -- 3. FASTER M1 BURST
+                for i=1, 8 do 
+                    FireAttack()
+                    task.wait() -- Minimal wait for max spam
                 end
             end
-            
-            for i=1, 3 do FireAttack(); task.wait(0.1) end
         else
+            -- Not in Blaster Mode? Use standard settings
             DoCombat()
         end
         
@@ -888,14 +916,18 @@ local function Run_Daguba_Sequence()
                   if Part then
                        TweenTo(Part.CFrame * CFrame.new(0,0,3))
                        local P = Target:FindFirstChildWhichIsA("ProximityPrompt", true)
-                       if P then Press_E_Virtual(P, 2) end -- Hold E for 2s
-                       task.wait(1.5) -- Wait for boss spawn
+                       if P then Press_E_Virtual(P, 2) end 
+                       
+                       -- ADDED WAIT AFTER SUMMON (CRITICAL FIX)
+                       task.wait(1.5)
+                       
                        Clear_Daguba_Room()
                   end
              end
         end
     end
 end
+-- // END FIXED DAGUBA // --
 
 local function RunZygaLogic()
     if IsEnteringDungeon then return end
@@ -1161,5 +1193,5 @@ InterfaceManager:BuildInterfaceSection(Tabs.Settings)
 SaveManager:BuildConfigSection(Tabs.Settings)
 
 Window:SelectTab(1)
-Fluent:Notify({Title = "Script Loaded", Content = "DAGUBA BOSS KILL & QUEST DETECT FIX", Duration = 5})
+Fluent:Notify({Title = "Script Loaded", Content = "FAIZ STAMINA + DAGUBA FIX", Duration = 5})
 SaveManager:LoadAutoloadConfig()
