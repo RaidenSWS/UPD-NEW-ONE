@@ -1,5 +1,5 @@
 -- // RIDER WORLD SCRIPT // --
--- // VERSION: DAGUBA + FAIZ BLASTER (V -> R PRIORITY) // --
+-- // VERSION: FAIZ BLASTER MODE DETECTION // --
 
 print("Script Loading...")
 
@@ -10,7 +10,7 @@ local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.
 -- // 1. WINDOW // --
 local Window = Fluent:CreateWindow({
     Title = "เสี่ยปาล์มขอเงินฟรี",
-    SubTitle = "Daguba Smart Logic",
+    SubTitle = "Faiz Mode Detect",
     TabWidth = 160,
     Size = UDim2.fromOffset(580, 460),
     Acrylic = true, 
@@ -241,54 +241,38 @@ local function DoCombat()
 end
 
 -- // COMBO LOGIC // --
+local function CheckFaizMode()
+    local success, result = pcall(function()
+        local cdText = LocalPlayer.PlayerGui.Main.PreviewCore.CD_TEXT
+        if cdText and cdText.Visible and cdText.Text ~= "" then
+            return true
+        end
+        return false
+    end)
+    return success and result
+end
+
 local function RunCombo(Target)
     if not Target or not Target:FindFirstChild("Humanoid") or Target.Humanoid.Health <= 0 then return end
     
     if _G.ComboName == "Faiz Blaster" then
-        -- // FAIZ BLASTER CUSTOM LOGIC // --
-        
-        -- CHECK 1: CombatText Visibility (Anti-Stun/Block Check)
-        local PlayerGui = LocalPlayer:FindFirstChild("PlayerGui")
-        local CombatText = PlayerGui and PlayerGui:FindFirstChild("Main") and PlayerGui.Main:FindFirstChild("CombatText")
-        
-        if CombatText and CombatText.Visible == true then
-            -- Logic: If CombatText is visible, JUST SPAM M1 (return early to loop again)
-            FireAttack()
-            return 
-        end
-
-        -- CHECK 2: Stamina Check
-        local RiderStats = LocalPlayer:FindFirstChild("RiderStats")
-        local StaminaStat = RiderStats and RiderStats:FindFirstChild("Stamina")
-        local CurrentStamina = StaminaStat and StaminaStat.Value or 0
-
-        -- Logic: Low Stamina (< 500) -> Just M1
-        if CurrentStamina < 500 then
-            FireAttack()
-            return -- Exit to loop again (Just M1 until > 500)
-        end
-
-        -- Logic: Healthy Stamina -> Run Combo
-        -- PRIORITY: V then R
-        FireSkill("V") 
-        task.wait(0.15) -- Fast switch
-        
-        if not Target.Parent then return end
-        
-        FireSkill("R")
-        task.wait(0.15) -- Fast switch
-        
-        for i=1, 5 do 
-            FireAttack()
-            task.wait(0.1)
-        end
-        
-        if not Target.Parent then return end
-        
-        -- Logic: Check "E" (Only if >= 1300)
-        local CurrentStaminaNow = StaminaStat and StaminaStat.Value or 0
-        if CurrentStaminaNow >= 1300 then
+        -- Check Mode First
+        if CheckFaizMode() then
+            -- BLASTER COMBO
+            FireSkill("V"); task.wait(0.2)
+            if not Target.Parent then return end
+            FireSkill("R"); task.wait(0.2)
+            
+            for i=1, 5 do 
+                FireAttack()
+                task.wait(0.1)
+            end
+            
+            if not Target.Parent then return end
             FireSkill("E"); task.wait(0.2)
+        else
+            -- NORMAL MODE -> Use Normal Auto Skill
+            DoCombat()
         end
         
     elseif _G.ComboName == "Chronos" then
@@ -354,7 +338,9 @@ CLIENT_NOTIFIER.OnClientEvent:Connect(function(Data)
     if type(Data) == "table" and Data.Text then 
         local txt = string.lower(Data.Text)
         
+        -- // TRANSFORM LOGIC //
         if _G.AutoForm and string.find(txt, "transform") and not IsRetreating then
+            
             local AllowTransform = true
             if _G.AutoBoss and not IsBossPresent() then
                 AllowTransform = false 
@@ -485,9 +471,10 @@ local function KillBossByName(BossName)
             local MyRoot = GetRootPart()
             if not MyRoot then return end
             if _G.AutoBoss and Target and Target.Parent == LIVES_FOLDER and Target:FindFirstChild("HumanoidRootPart") and Target.Humanoid.Health > 0 then
-                if not _G.IsTransforming and not IsRetreating then 
+                if not _G.IsTransforming and not IsRetreating then -- Do not stick if retreating
                     local EnemyCF = Target.HumanoidRootPart.CFrame
                     local BehindPosition = EnemyCF * CFrame.new(0, HEIGHT_OFFSET, _G.AttackDist)
+                    -- LERP FOR SMOOTHNESS
                     MyRoot.CFrame = MyRoot.CFrame:Lerp(CFrame.new(BehindPosition.Position, EnemyCF.Position), 0.5) 
                     MyRoot.Velocity = Vector3.zero
                 end
@@ -521,6 +508,7 @@ local function KillBossByName(BossName)
                          task.wait(0.1)
                     end
                     
+                    -- SMOOTH RETURN
                     while Target and Target.Parent and (GetRootPart().Position - Target.HumanoidRootPart.Position).Magnitude > 15 do
                         if not _G.AutoBoss then break end
                         TweenTo(Target.HumanoidRootPart.CFrame * CFrame.new(0, 2, _G.AttackDist), 70)
@@ -846,7 +834,7 @@ local function Summon_Agito()
     end
 end
 
--- // RESTORED DAGUBA QUEST LOGIC // --
+-- // DAGUBA: FORCE ENTRY (NO UI CHECK) // --
 local function GetDagubaQuestStatus()
     local GUI = LocalPlayer.PlayerGui.Main.QuestAlertFrame.QuestGUI
     if GUI:FindFirstChild("Ancient Argument") and GUI["Ancient Argument"].Visible then
@@ -860,6 +848,7 @@ local function Accept_Daguba_Quest()
         TweenTo(NPC.HumanoidRootPart.CFrame * CFrame.new(0,0,3))
         fireclickdetector(NPC.ClickDetector); task.wait(1)
         
+        -- Use Status Check to avoid spamming unnecessary dialog
         local Status = GetDagubaQuestStatus()
         
         if Status == "NONE" or Status == "COMPLETED" then
@@ -874,42 +863,8 @@ local function Accept_Daguba_Quest()
     end
 end
 
-local function Kill_Mob_Daguba(Target)
-    local RootPart = GetRootPart()
-    local Hum = Target:FindFirstChild("Humanoid")
-    local HRP = Target:FindFirstChild("HumanoidRootPart")
-    if not Hum or not HRP or not RootPart then return end
-    
-    TweenTo(HRP.CFrame * CFrame.new(0, 2, _G.AttackDist), 60)
-    
-    local Sticker
-    Sticker = RunService.Heartbeat:Connect(function()
-        local MyRoot = GetRootPart()
-        if not MyRoot then return end
-        if _G.AutoFarm and Target and Target.Parent == LIVES_FOLDER and Target:FindFirstChild("HumanoidRootPart") and Target.Humanoid.Health > 0 then
-            if not _G.IsTransforming then
-                local EnemyCF = Target.HumanoidRootPart.CFrame
-                local BehindPosition = EnemyCF * CFrame.new(0, HEIGHT_OFFSET, _G.AttackDist)
-                MyRoot.CFrame = CFrame.new(BehindPosition.Position, EnemyCF.Position)
-                MyRoot.Velocity = Vector3.zero
-            end
-        else
-            if Sticker then Sticker:Disconnect() end
-        end
-    end)
-    
-    while _G.AutoFarm and Target.Parent == LIVES_FOLDER do
-        if Hum.Health <= 0 then break end
-        if _G.IsTransforming then repeat task.wait(0.2) until not _G.IsTransforming else 
-            if _G.AutoCombo then RunCombo(Target) else DoCombat() end
-        end
-        task.wait(ATTACK_SPEED)
-    end
-    if Sticker then Sticker:Disconnect() end
-end
-
 local function Clear_Daguba_Room()
-    -- Wait loop for spawn (5s max)
+    -- 1. WAIT FOR SPAWN
     local StartWait = tick()
     while _G.AutoFarm and (tick() - StartWait < 5) do 
         local found = false
@@ -920,6 +875,7 @@ local function Clear_Daguba_Room()
         task.wait(0.2)
     end
     
+    -- 2. KILL
     while _G.AutoFarm do
         local EnemyFound = false
         for _, Name in ipairs(DAGUBA_BOSSES) do
@@ -958,7 +914,7 @@ local function Run_Daguba_Sequence()
         end
     end
 end
--- // END RESTORED // --
+-- // END FIXED DAGUBA // --
 
 local function RunZygaLogic()
     if IsEnteringDungeon then return end
