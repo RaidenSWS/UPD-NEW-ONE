@@ -1,5 +1,5 @@
 -- // RIDER WORLD SCRIPT // --
--- // VERSION: DAGUBA QUEST STATUS CHECK RESTORED // --
+-- // VERSION: DAGUBA QUEST STATUS CHECK RESTORED + FAIZ BLASTER LOGIC // --
 
 print("Script Loading...")
 
@@ -245,6 +245,18 @@ local function RunCombo(Target)
     if not Target or not Target:FindFirstChild("Humanoid") or Target.Humanoid.Health <= 0 then return end
     
     if _G.ComboName == "Faiz Blaster" then
+        -- // FAIZ BLASTER CUSTOM LOGIC // --
+        local RiderStats = LocalPlayer:FindFirstChild("RiderStats")
+        local StaminaStat = RiderStats and RiderStats:FindFirstChild("Stamina")
+        local CurrentStamina = StaminaStat and StaminaStat.Value or 0
+
+        -- CONDITION 1: Low Stamina (< 500) -> Just M1
+        if CurrentStamina < 500 then
+            FireAttack()
+            return -- Exit to loop again (Just M1 until > 500)
+        end
+
+        -- CONDITION 2: Healthy Stamina -> Run Combo
         FireSkill("V"); task.wait(0.2)
         if not Target.Parent then return end
         FireSkill("R"); task.wait(0.2)
@@ -255,7 +267,12 @@ local function RunCombo(Target)
         end
         
         if not Target.Parent then return end
-        FireSkill("E"); task.wait(0.2)
+        
+        -- CONDITION 3: Check "E" (Only if >= 1300)
+        local CurrentStaminaNow = StaminaStat and StaminaStat.Value or 0
+        if CurrentStaminaNow >= 1300 then
+            FireSkill("E"); task.wait(0.2)
+        end
         
     elseif _G.ComboName == "Chronos" then
         FireSkill("C"); task.wait(0.2)
