@@ -1,5 +1,5 @@
 -- // RIDER WORLD SCRIPT // --
--- // VERSION: CHRONOS SMOOTH RETURN (NO TP) + AGITO FIX // --
+-- // VERSION: DAGUBA ENTRY FIX + TARGETING UPDATE // --
 
 print("Script Loading...")
 
@@ -10,7 +10,7 @@ local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.
 -- // 1. WINDOW // --
 local Window = Fluent:CreateWindow({
     Title = "เสี่ยปาล์มขอเงินฟรี",
-    SubTitle = "Chronos No-TP Return",
+    SubTitle = "Daguba Entry Fix",
     TabWidth = 160,
     Size = UDim2.fromOffset(580, 460),
     Acrylic = true, 
@@ -111,7 +111,7 @@ local IsRetreating = false
 
 local AGITO_SAFE_CRAME = CFrame.new(-3516.10425, -1.97061276, -3156.91821, -0.579402685, -7.18338145e-09, 0.815041423, -1.60398237e-08, 1, -2.58899147e-09, -0.815041423, -1.45731889e-08, -0.579402685)
 local AGITO_RETREAT_SPEED = 20 
-local DAGUBA_BOSSES = {"Mighty Rider Lv.90", "Daguba Lv.90", "Empowered Daguba Lv.90"}
+local DAGUBA_BOSSES = {"Empowered Daguba Lv.90", "Daguba Lv.90", "Mighty Rider Lv.90"}
 
 -- CHRONOS SAFE SPOTS
 local CHRONOS_SAFE_SPOTS = {
@@ -261,7 +261,7 @@ task.spawn(function()
     while task.wait(1) do
         if _G.AutoForm and not _G.IsTransforming and not _G.QuestingMode and not IsRetreating then
             
-            -- !!! BOSS CHECK !!!
+            -- BOSS CHECK
             local ShouldTransform = true
             if _G.AutoBoss then
                 if not IsBossPresent() then
@@ -286,7 +286,6 @@ CLIENT_NOTIFIER.OnClientEvent:Connect(function(Data)
         -- // TRANSFORM LOGIC //
         if _G.AutoForm and string.find(txt, "transform") and not IsRetreating then
             
-            -- !!! BOSS CHECK !!!
             local AllowTransform = true
             if _G.AutoBoss and not IsBossPresent() then
                 AllowTransform = false 
@@ -382,6 +381,23 @@ local function GetNearestTarget(EnemyName)
     return NearestMob
 end
 
+-- // UPDATED: PRESS E VIRTUAL (LONG PRESS) // --
+local function Press_E_Virtual(Prompt, ExtraTime)
+    local Extra = ExtraTime or 0
+    if Prompt and Prompt.Enabled then
+        local HoldTime = Prompt.HoldDuration + Extra
+        if VirtualInputManager then 
+            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+            task.wait(HoldTime + 0.1) 
+            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+        else
+            fireproximityprompt(Prompt)
+        end
+        return true
+    end
+    return false
+end
+
 -- // SMOOTH BOSS KILLING FUNCTION // --
 local function KillBossByName(BossName)
     if not _G.AutoBoss then return end
@@ -389,7 +405,7 @@ local function KillBossByName(BossName)
     
     local Target = LIVES_FOLDER:FindFirstChild(BossName)
     if not Target then return end
-
+    
     if Target then
         if Target:FindFirstChild("HumanoidRootPart") then
              TweenTo(Target.HumanoidRootPart.CFrame * CFrame.new(0, 2, _G.AttackDist), 60)
@@ -415,9 +431,11 @@ local function KillBossByName(BossName)
         while _G.AutoBoss and Target.Parent == LIVES_FOLDER do
             if not Target:FindFirstChild("HumanoidRootPart") or Target.Humanoid.Health <= 0 then break end
             
+            local ShouldAttack = true
+            
             -- // CHRONOS LOGIC // --
             if BossName == "Cronus Lv.90" then
-                -- 1. EVASION ONLY (Blocking Removed)
+                -- 1. EVASION ONLY
                 local Judgement = Target:FindFirstChild("JudgementCalled")
                 if Judgement then
                     if not IsRetreating then
@@ -436,8 +454,7 @@ local function KillBossByName(BossName)
                          task.wait(0.1)
                     end
                     
-                    -- !!! DYNAMIC RETURN TWEEN LOOP (NO TP) !!!
-                    -- Tweens until distance is small
+                    -- SMOOTH RETURN
                     while Target and Target.Parent and (GetRootPart().Position - Target.HumanoidRootPart.Position).Magnitude > 15 do
                         if not _G.AutoBoss then break end
                         TweenTo(Target.HumanoidRootPart.CFrame * CFrame.new(0, 2, _G.AttackDist), 70)
@@ -606,7 +623,8 @@ local function Summon_RookBishop()
     TweenTo(ROOK_BISHOP_SUMMON_CF); task.wait(0.5)
     for _, v in pairs(Workspace:GetDescendants()) do
         if v:IsA("ProximityPrompt") and (v.Parent.Position - ROOK_BISHOP_SUMMON_CF.Position).Magnitude < 10 then
-            fireproximityprompt(v); break
+            Press_E_Virtual(v, 2) -- HOLD E FOR 2 SECONDS
+            break
         end
     end
     task.wait(1.5)
@@ -723,7 +741,6 @@ end
 local function Farm_Agito_Quest()
     if _G.IsTransforming or not _G.AutoFarm then return end
     if Check_Agito_Quest_Active() == "ACTIVE" then return end
-    -- FIXED NPC FIND
     local NPC = Workspace.NPC:FindFirstChild("Shoichi")
     if not NPC then NPC = Workspace.NPC:WaitForChild("Shoichi", 5) end
 
@@ -753,18 +770,23 @@ local function Summon_Agito()
         end
     end
 end
+
+-- // AUTO DAGUBA FIX // --
 local function GetDagubaQuestStatus()
     local GUI = LocalPlayer.PlayerGui.Main.QuestAlertFrame.QuestGUI
     if GUI:FindFirstChild("Ancient Argument") and GUI["Ancient Argument"].Visible then
         return string.find(GUI["Ancient Argument"].TextLabel.Text, "Completed") and "COMPLETED" or "ACTIVE"
     end return "NONE"
 end
+
 local function Accept_Daguba_Quest()
     local NPC = Workspace.NPC:FindFirstChild("DojoStudent")
     if NPC then
         TweenTo(NPC.HumanoidRootPart.CFrame * CFrame.new(0,0,3))
         fireclickdetector(NPC.ClickDetector); task.wait(1)
+        
         local Status = GetDagubaQuestStatus()
+        
         if Status == "NONE" or Status == "COMPLETED" then
              DIALOGUE_EVENT:FireServer({Choice = "Yes, I've completed it."}); task.wait(0.5)
              DIALOGUE_EVENT:FireServer({Choice = "Can I get another quest?"}); task.wait(0.5)
@@ -776,6 +798,73 @@ local function Accept_Daguba_Quest()
         task.wait(1); _G.QuestingMode = false
     end
 end
+
+-- Kill function specifically for the dungeon room
+local function Kill_Mob_Daguba(Target)
+    local RootPart = GetRootPart()
+    local Hum = Target:FindFirstChild("Humanoid")
+    local HRP = Target:FindFirstChild("HumanoidRootPart")
+    if not Hum or not HRP or not RootPart then return end
+    
+    TweenTo(HRP.CFrame * CFrame.new(0, 2, _G.AttackDist), 60)
+    
+    local Sticker
+    Sticker = RunService.Heartbeat:Connect(function()
+        local MyRoot = GetRootPart()
+        if not MyRoot then return end
+        if _G.AutoFarm and Target and Target.Parent == LIVES_FOLDER and Target:FindFirstChild("HumanoidRootPart") and Target.Humanoid.Health > 0 then
+            if not _G.IsTransforming then
+                local EnemyCF = Target.HumanoidRootPart.CFrame
+                local BehindPosition = EnemyCF * CFrame.new(0, HEIGHT_OFFSET, _G.AttackDist)
+                MyRoot.CFrame = CFrame.new(BehindPosition.Position, EnemyCF.Position)
+                MyRoot.Velocity = Vector3.zero
+            end
+        else
+            if Sticker then Sticker:Disconnect() end
+        end
+    end)
+    
+    while _G.AutoFarm and Target.Parent == LIVES_FOLDER do
+        if Hum.Health <= 0 then break end
+        if _G.IsTransforming then repeat task.wait(0.2) until not _G.IsTransforming else DoCombat() end
+        task.wait(ATTACK_SPEED)
+    end
+    if Sticker then Sticker:Disconnect() end
+end
+
+local function Clear_Daguba_Room()
+    -- Wait loop for spawn (5s max)
+    local StartWait = tick()
+    while _G.AutoFarm and (tick() - StartWait < 5) do 
+        local found = false
+        for _, name in pairs(DAGUBA_BOSSES) do
+            if LIVES_FOLDER:FindFirstChild(name) then found = true; break end
+        end
+        if found then break end
+        task.wait(0.2)
+    end
+    
+    -- Kill Phase
+    while _G.AutoFarm do
+        local EnemyFound = false
+        for _, Name in ipairs(DAGUBA_BOSSES) do
+            local Mob = LIVES_FOLDER:FindFirstChild(Name)
+            if Mob and Mob:FindFirstChild("Humanoid") and Mob.Humanoid.Health > 0 then
+                EnemyFound = true
+                Kill_Mob_Daguba(Mob)
+                break 
+            end
+        end
+        if not EnemyFound then break end -- Break immediately if room empty
+        task.wait(0.5)
+    end
+end
+
+local function IsInAncientDungeon()
+    if Workspace:FindFirstChild("MAP") and Workspace.MAP:FindFirstChild("Trial") and Workspace.MAP.Trial:FindFirstChild("Trial - Zone") and Workspace.MAP.Trial["Trial - Zone"]:FindFirstChild("Trial of Ancient") then return true end
+    return false
+end
+
 local function Run_Daguba_Sequence()
     local Trial = Workspace.KeyItem:FindFirstChild("Trial")
     if Trial then
@@ -787,13 +876,15 @@ local function Run_Daguba_Sequence()
                   if Part then
                        TweenTo(Part.CFrame * CFrame.new(0,0,3))
                        local P = Target:FindFirstChildWhichIsA("ProximityPrompt", true)
-                       if P then fireproximityprompt(P); task.wait(1) end
+                       if P then Press_E_Virtual(P, 2) end -- Hold E for 2s
                        Clear_Daguba_Room()
                   end
              end
         end
     end
 end
+-- // END DAGUBA // --
+
 local function RunZygaLogic()
     if IsEnteringDungeon then return end
     local Boss = LIVES_FOLDER:FindFirstChild("Zyga Lv.85")
@@ -993,29 +1084,43 @@ FarmToggle:OnChanged(function()
                             else KillEnemy("Miner Goon Lv.50") end
                         end
                     elseif CurrentState == "CRAFTING" then end
+                
+                -- // FIXED DAGUBA LOGIC // --
                 elseif QuestDropdown.Value == "DAGUBA (Auto Dungeon)" then
                      local Status = GetDagubaQuestStatus()
+                    
                     if Status == "COMPLETED" then
                         CancelMovement()
                         Fluent:Notify({Title = "Daguba", Content = "Quest Completed! Waiting 20s...", Duration = 5})
                         for i = 1, 20 do if not _G.AutoFarm then break end task.wait(1) end
                         if _G.AutoFarm then Accept_Daguba_Quest() end
+                        
                     elseif IsInAncientDungeon() then
-                        Run_Daguba_Sequence(); task.wait(2)
+                        Run_Daguba_Sequence() -- Already inside, clear room
+                        task.wait(2)
+                        
                     elseif Status == "NONE" then
                         Accept_Daguba_Quest()
+                        
                     elseif Status == "ACTIVE" then
+                        -- QUEST IS ACTIVE BUT NOT IN DUNGEON?
+                        -- 1. Try to Enter immediately
                         if not IsEnteringDungeon then
-                            IsEnteringDungeon = true; local DungeonStarted = false
-                            local Con = CLIENT_NOTIFIER.OnClientEvent:Connect(function(Data) if string.find(Data.Text, "Trial of Ancient") and string.find(Data.Text, "Has begun") then DungeonStarted = true end end)
-                            RIDER_TRIAL_EVENT:FireServer("Trial of Ancient"); local T = 0
-                            repeat task.wait(1); T = T + 1 until DungeonStarted or T > 15 or not _G.AutoFarm
-                            if Con then Con:Disconnect() end
-                            if DungeonStarted then task.wait(2); Run_Daguba_Sequence() end
+                            IsEnteringDungeon = true
+                            RIDER_TRIAL_EVENT:FireServer("Trial of Ancient") -- Force enter
+                            
+                            -- Wait loop to check if entered
+                            local T = 0
+                            repeat 
+                                task.wait(1)
+                                T = T + 1
+                            until IsInAncientDungeon() or T > 10 or not _G.AutoFarm
+                            
                             IsEnteringDungeon = false
                         end
                         task.wait(2)
                     end
+                
                 elseif QuestDropdown.Value == "Auto Zyga" then
                      RunZygaLogic()
                 end
@@ -1035,5 +1140,5 @@ InterfaceManager:BuildInterfaceSection(Tabs.Settings)
 SaveManager:BuildConfigSection(Tabs.Settings)
 
 Window:SelectTab(1)
-Fluent:Notify({Title = "Script Loaded", Content = "ALL FEATURES FIXED + CHRONOS BLOCK", Duration = 5})
+Fluent:Notify({Title = "Script Loaded", Content = "DAGUBA BOSS KILL & QUEST DETECT FIX", Duration = 5})
 SaveManager:LoadAutoloadConfig()
