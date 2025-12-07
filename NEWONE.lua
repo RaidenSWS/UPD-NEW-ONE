@@ -1,5 +1,5 @@
 -- // RIDER WORLD SCRIPT // --
--- // VERSION: DAGUBA ENTRY FIX + TARGETING UPDATE // --
+-- // VERSION: DAGUBA QUEST STATUS CHECK RESTORED // --
 
 print("Script Loading...")
 
@@ -10,7 +10,7 @@ local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.
 -- // 1. WINDOW // --
 local Window = Fluent:CreateWindow({
     Title = "เสี่ยปาล์มขอเงินฟรี",
-    SubTitle = "Daguba Entry Fix",
+    SubTitle = "Daguba Smart Logic",
     TabWidth = 160,
     Size = UDim2.fromOffset(580, 460),
     Acrylic = true, 
@@ -129,6 +129,10 @@ _G.AutoSkill = false
 _G.FormName = "Survive Bat"
 _G.SelectedKeys = { ["E"] = false, ["R"] = false, ["C"] = false, ["V"] = false }
 
+-- COMBO SETTINGS
+_G.AutoCombo = false
+_G.ComboName = "Faiz Blaster"
+
 -- // HELPER FUNCTIONS // --
 
 local function GetRootPart()
@@ -236,6 +240,39 @@ local function DoCombat()
     end
 end
 
+-- // COMBO LOGIC // --
+local function RunCombo(Target)
+    if not Target or not Target:FindFirstChild("Humanoid") or Target.Humanoid.Health <= 0 then return end
+    
+    if _G.ComboName == "Faiz Blaster" then
+        FireSkill("V"); task.wait(0.2)
+        if not Target.Parent then return end
+        FireSkill("R"); task.wait(0.2)
+        
+        for i=1, 5 do 
+            FireAttack()
+            task.wait(0.1)
+        end
+        
+        if not Target.Parent then return end
+        FireSkill("E"); task.wait(0.2)
+        
+    elseif _G.ComboName == "Chronos" then
+        FireSkill("C"); task.wait(0.2)
+        if not Target.Parent then return end
+        FireSkill("E"); task.wait(0.2)
+        if not Target.Parent then return end
+        FireSkill("V"); task.wait(0.2)
+        if not Target.Parent then return end
+        FireSkill("R"); task.wait(0.2)
+        
+        for i=1, 5 do 
+            FireAttack()
+            task.wait(0.1)
+        end
+    end
+end
+
 -- Noclip
 task.spawn(function()
     while task.wait(1) do
@@ -283,9 +320,7 @@ CLIENT_NOTIFIER.OnClientEvent:Connect(function(Data)
     if type(Data) == "table" and Data.Text then 
         local txt = string.lower(Data.Text)
         
-        -- // TRANSFORM LOGIC //
         if _G.AutoForm and string.find(txt, "transform") and not IsRetreating then
-            
             local AllowTransform = true
             if _G.AutoBoss and not IsBossPresent() then
                 AllowTransform = false 
@@ -416,10 +451,9 @@ local function KillBossByName(BossName)
             local MyRoot = GetRootPart()
             if not MyRoot then return end
             if _G.AutoBoss and Target and Target.Parent == LIVES_FOLDER and Target:FindFirstChild("HumanoidRootPart") and Target.Humanoid.Health > 0 then
-                if not _G.IsTransforming and not IsRetreating then -- Do not stick if retreating
+                if not _G.IsTransforming and not IsRetreating then 
                     local EnemyCF = Target.HumanoidRootPart.CFrame
                     local BehindPosition = EnemyCF * CFrame.new(0, HEIGHT_OFFSET, _G.AttackDist)
-                    -- LERP FOR SMOOTHNESS
                     MyRoot.CFrame = MyRoot.CFrame:Lerp(CFrame.new(BehindPosition.Position, EnemyCF.Position), 0.5) 
                     MyRoot.Velocity = Vector3.zero
                 end
@@ -435,7 +469,6 @@ local function KillBossByName(BossName)
             
             -- // CHRONOS LOGIC // --
             if BossName == "Cronus Lv.90" then
-                -- 1. EVASION ONLY
                 local Judgement = Target:FindFirstChild("JudgementCalled")
                 if Judgement then
                     if not IsRetreating then
@@ -454,7 +487,6 @@ local function KillBossByName(BossName)
                          task.wait(0.1)
                     end
                     
-                    -- SMOOTH RETURN
                     while Target and Target.Parent and (GetRootPart().Position - Target.HumanoidRootPart.Position).Magnitude > 15 do
                         if not _G.AutoBoss then break end
                         TweenTo(Target.HumanoidRootPart.CFrame * CFrame.new(0, 2, _G.AttackDist), 70)
@@ -469,7 +501,9 @@ local function KillBossByName(BossName)
             if _G.IsTransforming then 
                 repeat task.wait(0.2) until not _G.IsTransforming 
             else
-                if not IsRetreating then DoCombat() end
+                if not IsRetreating then 
+                    if _G.AutoCombo then RunCombo(Target) else DoCombat() end
+                end
             end
             
             task.wait(0.05)
@@ -496,7 +530,8 @@ local function KillEnemy(EnemyName)
                   if MyRoot then
                        MyRoot.CFrame = CFrame.new(Target.HumanoidRootPart.Position + Vector3.new(0, HEIGHT_OFFSET, _G.AttackDist), Target.HumanoidRootPart.Position)
                        MyRoot.Velocity = Vector3.zero
-                       DoCombat()
+                       
+                       if _G.AutoCombo then RunCombo(Target) else DoCombat() end
                   end
                   task.wait(ATTACK_SPEED)
              end
@@ -521,7 +556,13 @@ local function KillEnemy(EnemyName)
         
         while _G.AutoFarm and Target.Parent == LIVES_FOLDER do
             if not Target:FindFirstChild("HumanoidRootPart") or Target.Humanoid.Health <= 0 then break end
-            if _G.IsTransforming then repeat task.wait(0.2) until not _G.IsTransforming else DoCombat() end
+            
+            if _G.IsTransforming then 
+                repeat task.wait(0.2) until not _G.IsTransforming 
+            else 
+                 if _G.AutoCombo then RunCombo(Target) else DoCombat() end
+            end
+            
             task.wait(ATTACK_SPEED)
         end
         if Sticker then Sticker:Disconnect() end
@@ -771,7 +812,7 @@ local function Summon_Agito()
     end
 end
 
--- // AUTO DAGUBA FIX // --
+-- // RESTORED DAGUBA QUEST LOGIC // --
 local function GetDagubaQuestStatus()
     local GUI = LocalPlayer.PlayerGui.Main.QuestAlertFrame.QuestGUI
     if GUI:FindFirstChild("Ancient Argument") and GUI["Ancient Argument"].Visible then
@@ -799,7 +840,6 @@ local function Accept_Daguba_Quest()
     end
 end
 
--- Kill function specifically for the dungeon room
 local function Kill_Mob_Daguba(Target)
     local RootPart = GetRootPart()
     local Hum = Target:FindFirstChild("Humanoid")
@@ -826,7 +866,9 @@ local function Kill_Mob_Daguba(Target)
     
     while _G.AutoFarm and Target.Parent == LIVES_FOLDER do
         if Hum.Health <= 0 then break end
-        if _G.IsTransforming then repeat task.wait(0.2) until not _G.IsTransforming else DoCombat() end
+        if _G.IsTransforming then repeat task.wait(0.2) until not _G.IsTransforming else 
+            if _G.AutoCombo then RunCombo(Target) else DoCombat() end
+        end
         task.wait(ATTACK_SPEED)
     end
     if Sticker then Sticker:Disconnect() end
@@ -844,7 +886,6 @@ local function Clear_Daguba_Room()
         task.wait(0.2)
     end
     
-    -- Kill Phase
     while _G.AutoFarm do
         local EnemyFound = false
         for _, Name in ipairs(DAGUBA_BOSSES) do
@@ -855,7 +896,7 @@ local function Clear_Daguba_Room()
                 break 
             end
         end
-        if not EnemyFound then break end -- Break immediately if room empty
+        if not EnemyFound then break end 
         task.wait(0.5)
     end
 end
@@ -876,14 +917,14 @@ local function Run_Daguba_Sequence()
                   if Part then
                        TweenTo(Part.CFrame * CFrame.new(0,0,3))
                        local P = Target:FindFirstChildWhichIsA("ProximityPrompt", true)
-                       if P then Press_E_Virtual(P, 2) end -- Hold E for 2s
+                       if P then Press_E_Virtual(P, 2) end 
                        Clear_Daguba_Room()
                   end
              end
         end
     end
 end
--- // END DAGUBA // --
+-- // END RESTORED // --
 
 local function RunZygaLogic()
     if IsEnteringDungeon then return end
@@ -964,6 +1005,17 @@ local FormToggle = Tabs.Main:AddToggle("FormToggle", {Title = "Enable AUTO FORM 
 FormToggle:OnChanged(function() _G.AutoForm = Options.FormToggle.Value end)
 local FormSelect = Tabs.Main:AddDropdown("FormSelect", {Title = "Select Form", Values = {"Survive Bat", "Survival Dragon"}, Multi = false, Default = 1})
 FormSelect:OnChanged(function(Value) _G.FormName = Value end)
+
+local ComboSection = Tabs.Main:AddSection("COMBO SKILL")
+local ComboToggle = Tabs.Main:AddToggle("AutoCombo", {Title = "Enable Combo", Default = false })
+ComboToggle:OnChanged(function() _G.AutoCombo = Options.AutoCombo.Value end)
+local ComboSelect = Tabs.Main:AddDropdown("ComboSelect", {
+    Title = "Select Combo",
+    Values = {"Faiz Blaster", "Chronos"},
+    Multi = false,
+    Default = 1,
+})
+ComboSelect:OnChanged(function(Value) _G.ComboName = Value end)
 
 local SkillSection = Tabs.Main:AddSection("AUTO SKILL")
 local SkillToggle = Tabs.Main:AddToggle("SkillToggle", {Title = "Enable Auto Skill", Default = false })
@@ -1085,7 +1137,7 @@ FarmToggle:OnChanged(function()
                         end
                     elseif CurrentState == "CRAFTING" then end
                 
-                -- // FIXED DAGUBA LOGIC // --
+                -- // DAGUBA FORCE MODE (REVERTED) // --
                 elseif QuestDropdown.Value == "DAGUBA (Auto Dungeon)" then
                      local Status = GetDagubaQuestStatus()
                     
@@ -1140,5 +1192,5 @@ InterfaceManager:BuildInterfaceSection(Tabs.Settings)
 SaveManager:BuildConfigSection(Tabs.Settings)
 
 Window:SelectTab(1)
-Fluent:Notify({Title = "Script Loaded", Content = "DAGUBA BOSS KILL & QUEST DETECT FIX", Duration = 5})
+Fluent:Notify({Title = "Script Loaded", Content = "DAGUBA FORCE MODE + ALL FIXES", Duration = 5})
 SaveManager:LoadAutoloadConfig()
