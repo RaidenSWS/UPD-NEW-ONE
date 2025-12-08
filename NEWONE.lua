@@ -129,6 +129,32 @@ _G.AutoSkill = false
 _G.FormName = "Survive Bat"
 _G.SelectedKeys = { ["E"] = false, ["R"] = false, ["C"] = false, ["V"] = false }
 
+-- // ⭐ NEW: SMART RANDOM SPOT SELECTION // --
+local function GetSmartRandomSpot(currentPosition)
+    local spotWeights = {}
+    local totalWeight = 0
+    
+    -- Calculate distance-based weights (farther = higher priority)
+    for i, spot in ipairs(CHRONOS_SAFE_SPOTS) do
+        local distance = (currentPosition - spot.Position).Magnitude
+        spotWeights[i] = distance
+        totalWeight = totalWeight + distance
+    end
+    
+    -- Weighted random selection
+    local random = math.random() * totalWeight
+    local cumulativeWeight = 0
+    
+    for i, weight in ipairs(spotWeights) do
+        cumulativeWeight = cumulativeWeight + weight
+        if random <= cumulativeWeight then
+            return i
+        end
+    end
+    
+    -- Fallback
+    return math.random(1, #CHRONOS_SAFE_SPOTS)
+end
 -- COMBO SETTINGS
 _G.AutoCombo = false
 _G.ComboName = "Faiz Blaster"
@@ -497,27 +523,51 @@ local function KillBossByName(BossName)
             
             local ShouldAttack = true
             
-            if BossName == "Cronus Lv.90" then
-                local Judgement = Target:FindFirstChild("JudgementCalled")
-                if Judgement then
-                    if not IsRetreating then
-                        IsRetreating = true; Fluent:Notify({Title = "EVADE!", Content = "Judgement Detected! Running...", Duration = 2})
-                    end
-                    while Target and Target.Parent and Target:FindFirstChild("JudgementCalled") and _G.AutoBoss do
-                         local SafeSpot = CHRONOS_SAFE_SPOTS[ChronosSpotIndex]
-                         TweenTo(SafeSpot, 70) 
-                         if (GetRootPart().Position - SafeSpot.Position).Magnitude < 15 then
-                             ChronosSpotIndex = ChronosSpotIndex + 1; if ChronosSpotIndex > 4 then ChronosSpotIndex = 1 end
-                         end
-                         task.wait(0.1)
-                    end
-                    while Target and Target.Parent and (GetRootPart().Position - Target.HumanoidRootPart.Position).Magnitude > 15 do
-                        if not _G.AutoBoss then break end
-                        TweenTo(Target.HumanoidRootPart.CFrame * CFrame.new(0, 2, _G.AttackDist), 70)
-                    end
-                    IsRetreating = false
-                else IsRetreating = false end
+            -- ⭐ IMPROVED CHRONOS EVASION WITH RANDOMIZATION ⭐
+if BossName == "Cronus Lv.90" then
+    local Judgement = Target:FindFirstChild("JudgementCalled")
+    if Judgement then
+        if not IsRetreating then
+            IsRetreating = true
+            Fluent:Notify({
+                Title = "EVADE!", 
+                Content = "Judgement! Smart Random Evasion!", 
+                Duration = 2
+            })
+        end
+        
+        while Target and Target.Parent and Target:FindFirstChild("JudgementCalled") and _G.AutoBoss do
+            local SafeSpot = CHRONOS_SAFE_SPOTS[ChronosSpotIndex]
+            local MyRoot = GetRootPart()
+            
+            if not MyRoot then break end
+            
+            TweenTo(SafeSpot, 70)
+            
+            -- When reaching spot, pick smart random next location
+            if (MyRoot.Position - SafeSpot.Position).Magnitude < 15 then
+                -- Get weighted random spot (prefers distant locations)
+                ChronosSpotIndex = GetSmartRandomSpot(MyRoot.Position)
+                
+                -- Random human-like delay
+                task.wait(math.random(15, 35) / 100) -- 0.15 to 0.35 seconds
             end
+            
+            task.wait(0.1)
+        end
+        
+        -- Return to boss after judgement ends
+        while Target and Target.Parent and (GetRootPart().Position - Target.HumanoidRootPart.Position).Magnitude > 15 do
+            if not _G.AutoBoss then break end
+            TweenTo(Target.HumanoidRootPart.CFrame * CFrame.new(0, 2, _G.AttackDist), 70)
+            task.wait(0.1)
+        end
+        
+        IsRetreating = false
+    else 
+        IsRetreating = false 
+    end
+end
 
             if _G.IsTransforming then repeat task.wait(0.2) until not _G.IsTransforming 
             else if not IsRetreating then 
