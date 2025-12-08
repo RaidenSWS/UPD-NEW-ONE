@@ -1,5 +1,5 @@
 -- // RIDER WORLD SCRIPT // --
--- // VERSION: FAIZ BLASTER FAST SPAM FIX // --
+-- // VERSION: UPDATE AUTO MINER GOON RESET // --
 
 print("Script Loading...")
 
@@ -10,7 +10,7 @@ local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.
 -- // 1. WINDOW // --
 local Window = Fluent:CreateWindow({
     Title = "เสี่ยปาล์มขอเงินฟรี",
-    SubTitle = "Faiz Fast Spam",
+    SubTitle = "MINER GOON FIX",
     TabWidth = 160,
     Size = UDim2.fromOffset(580, 460),
     Acrylic = true, 
@@ -167,6 +167,62 @@ local function GetRootPart()
     return Character:FindFirstChild("HumanoidRootPart")
 end
 
+-- ✅ ADD THIS NEW FUNCTION HERE:
+local function ForceResetCharacter()
+    Fluent:Notify({Title = "Reset", Content = "Resetting character...", Duration = 3})
+    
+    -- Store old character for comparison
+    local OldCharacter = LocalPlayer.Character
+    
+    -- Method 1: Kill character
+    pcall(function()
+        if OldCharacter and OldCharacter:FindFirstChild("Humanoid") then
+            OldCharacter.Humanoid.Health = 0
+        end
+    end)
+    
+    task.wait(0.5)
+    
+    -- Method 2: LoadCharacter (backup)
+    pcall(function()
+        LocalPlayer:LoadCharacter()
+    end)
+    
+    -- Wait for NEW character to spawn
+    local StartTime = tick()
+    local MaxWaitTime = 15
+    local NewCharacterSpawned = false
+    
+    while (tick() - StartTime) < MaxWaitTime do
+        task.wait(0.5)
+        
+        -- GET FRESH CHARACTER REFERENCE!
+        local CurrentChar = LocalPlayer.Character
+        
+        -- Check if it's a NEW character (different from old one)
+        if CurrentChar and CurrentChar ~= OldCharacter then
+            local Humanoid = CurrentChar:FindFirstChild("Humanoid")
+            local RootPart = CurrentChar:FindFirstChild("HumanoidRootPart")
+            
+            if Humanoid and RootPart and Humanoid.Health > 0 then
+                NewCharacterSpawned = true
+                print("✅ New character spawned successfully!")
+                break
+            end
+        end
+    end
+    
+    if NewCharacterSpawned then
+        Fluent:Notify({Title = "Success", Content = "Character respawned!", Duration = 2})
+        task.wait(2) -- Extra time for character to stabilize
+        return true
+    else
+        warn("⚠️ Character reset timeout after " .. MaxWaitTime .. "s")
+        Fluent:Notify({Title = "Warning", Content = "Reset may have failed", Duration = 5})
+        return false
+    end
+end
+
 local function TweenTo(TargetCFrame, CustomSpeed)
     local RootPart = GetRootPart()
     if not RootPart then return end
@@ -174,6 +230,7 @@ local function TweenTo(TargetCFrame, CustomSpeed)
     if _G.IsTransforming and (tick() - TransformStartTime) > 12 then
         _G.IsTransforming = false
     end
+    -- ... rest of function ...
 
     while _G.IsTransforming and (_G.AutoFarm or _G.AutoBoss) do task.wait(0.5) end
     if not (_G.AutoFarm or _G.AutoBoss) then return end
@@ -185,7 +242,7 @@ local function TweenTo(TargetCFrame, CustomSpeed)
     local Info = TweenInfo.new(Time, Enum.EasingStyle.Linear)
     local Tween = TweenService:Create(RootPart, Info, {CFrame = TargetCFrame})
     Tween:Play()
-    
+
     local Connection
     Connection = RunService.Stepped:Connect(function()
         if not (_G.AutoFarm or _G.AutoBoss) then Tween:Cancel(); Connection:Disconnect() end
@@ -760,63 +817,164 @@ local function Accept_MinerGoon_Quest()
     end
 end
 local function CloseCraftingGUI()
-    local GUI = LocalPlayer.PlayerGui:FindFirstChild("CraftingGUI")
+    local GUI = LocalPlayer. PlayerGui:FindFirstChild("CraftingGUI")
     if GUI then
         local ExitBtn = GUI:FindFirstChild("Exit") 
         if ExitBtn then
             if VirtualInputManager then
-                 VirtualInputManager:SendMouseButtonEvent(ExitBtn.AbsolutePosition.X+10, ExitBtn.AbsolutePosition.Y+10, 0, true, game, 1)
-                 task.wait(0.05)
-                 VirtualInputManager:SendMouseButtonEvent(ExitBtn.AbsolutePosition.X+10, ExitBtn.AbsolutePosition.Y+10, 0, false, game, 1)
+                pcall(function()
+                    VirtualInputManager:SendMouseButtonEvent(ExitBtn.AbsolutePosition.X+10, ExitBtn.AbsolutePosition.Y+10, 0, true, game, 1)
+                    task.wait(0.05)
+                    VirtualInputManager:SendMouseButtonEvent(ExitBtn.AbsolutePosition.X+10, ExitBtn.AbsolutePosition.Y+10, 0, false, game, 1)
+                end)
             end
-            for _, c in pairs(getconnections(ExitBtn.MouseButton1Click)) do c:Fire() end
+            
+            -- ✅ FIX: Wrap in pcall to avoid nil errors
+            pcall(function()
+                for _, c in pairs(getconnections(ExitBtn.MouseButton1Click)) do 
+                    c:Fire() 
+                end 
+            end)
         end
-        DIALOGUE_EVENT:FireServer({Exit = true})
+        
+        -- ✅ FIX: Safely close dialogue
+        pcall(function()
+            DIALOGUE_EVENT:FireServer({Exit = true})
+        end)
     end
+    
+    -- ✅ FIX: Safely unanchor character
     local Char = LocalPlayer.Character
-    if Char and Char:FindFirstChild("HumanoidRootPart") then Char.HumanoidRootPart.Anchored = false end
+    if Char and Char:FindFirstChild("HumanoidRootPart") then 
+        pcall(function()
+            Char.HumanoidRootPart.Anchored = false
+        end)
+    end
 end
 local function RunCraftingRoutine()
-    WarpTo("Rider's Center"); Fluent:Notify({Title = "Crafting", Content = "Warping...", Duration = 3})
+    WarpTo("Rider's Center")
+    Fluent:Notify({Title = "Crafting", Content = "Warping.. .", Duration = 3})
     task.wait(6)
+    
     local NPC = Workspace.NPC:FindFirstChild("UniversalCrafting")
-    if NPC then
-        TweenTo(NPC.HumanoidRootPart.CFrame * CFrame.new(0,0,3))
-        fireclickdetector(NPC.ClickDetector); task.wait(1)
-        DIALOGUE_EVENT:FireServer({Choice = "[ Craft ]"}); task.wait(1)
-        CraftStatusSignal = "IDLE"
-        local Con = CRAFTING_EVENT.OnClientEvent:Connect(function(Data)
-            if type(Data) == "table" and Data.Callback then
-                local msg = string.lower(Data.Callback)
-                if string.find(msg, "limit") or string.find(msg, "max") then CraftStatusSignal = "MAX"
-                elseif string.find(msg, "not enough") then CraftStatusSignal = "EMPTY" end
-            end
-        end)
-        local Start = tick()
-        local Items = {"Blue Fragment", "Red Fragment", "Blue Sappyre", "Red Emperor"}
-        local Stop = false
-        for _, Item in ipairs(Items) do
-            if not _G.AutoFarm or Stop then break end
-            local Active = true
-            local Att = 0
-            while _G.AutoFarm and Active do
-                CraftStatusSignal = "IDLE"
-                CRAFTING_EVENT:FireServer("Special", Item); task.wait(0.3); Att = Att + 1
-                if CraftStatusSignal == "MAX" then Active = false
-                elseif CraftStatusSignal == "EMPTY" then Active = false; Stop = true
-                elseif Att > 20 then Active = false end
-                if (tick() - Start) > 60 then Stop = true; break end
+    if not NPC then
+        warn("⚠️ UniversalCrafting NPC not found!")
+        Fluent:Notify({Title = "Error", Content = "NPC not found", Duration = 5})
+        return
+    end
+    
+    -- ✅ FIX: Add more safety checks
+    local NPCRoot = NPC:FindFirstChild("HumanoidRootPart")
+    if not NPCRoot then
+        warn("⚠️ NPC HumanoidRootPart not found!")
+        return
+    end
+    
+    TweenTo(NPCRoot. CFrame * CFrame.new(0,0,3))
+    task.wait(0.5)
+    
+    -- ✅ FIX: Safely fire click detector
+    pcall(function()
+        fireclickdetector(NPC. ClickDetector)
+    end)
+    task.wait(1)
+    
+    -- ✅ FIX: Safely send dialogue
+    pcall(function()
+        DIALOGUE_EVENT:FireServer({Choice = "[ Craft ]"})
+    end)
+    task.wait(1)
+    
+    CraftStatusSignal = "IDLE"
+    local Con = CRAFTING_EVENT. OnClientEvent:Connect(function(Data)
+        if type(Data) == "table" and Data. Callback then
+            local msg = string.lower(Data.Callback)
+            if string.find(msg, "limit") or string. find(msg, "max") then 
+                CraftStatusSignal = "MAX"
+            elseif string.find(msg, "not enough") then 
+                CraftStatusSignal = "EMPTY"
             end
         end
-        if Con then Con:Disconnect() end
-        CloseCraftingGUI(); task.wait(1)
-        CurrentState = "FARMING"; QuestCount = 0; WarpedToMine = false
-        Fluent:Notify({Title = "Return", Content = "Respawning to Clear UI...", Duration = 3})
-        if LocalPlayer.Character then LocalPlayer.Character.Humanoid.Health = 0 end
-        LocalPlayer.CharacterAdded:Wait(); task.wait(2)
-        for i=1,5 do WarpTo("Mine's Field"); task.wait(0.5) end
+    end)
+    
+    local Start = tick()
+    local Items = {"Blue Fragment", "Red Fragment", "Blue Sappyre", "Red Emperor"}
+    local Stop = false
+    
+    for _, Item in ipairs(Items) do
+        if not _G.AutoFarm or Stop then break end
+        local Active = true
+        local Att = 0
+        
+        while _G.AutoFarm and Active do
+            CraftStatusSignal = "IDLE"
+            
+            -- ✅ FIX: Wrap in pcall
+            pcall(function()
+                CRAFTING_EVENT:FireServer("Special", Item)
+            end)
+            
+            task.wait(0.3)
+            Att = Att + 1
+            
+            if CraftStatusSignal == "MAX" then 
+                Active = false
+            elseif CraftStatusSignal == "EMPTY" then 
+                Active = false
+                Stop = true
+            elseif Att > 20 then 
+                Active = false
+            end
+            
+            if (tick() - Start) > 60 then 
+                Stop = true
+                break 
+            end
+        end
+    end
+    
+    if Con then Con:Disconnect() end
+    
+    -- ✅ FIX: Use the improved reset function
+    CloseCraftingGUI()
+    task.wait(1)
+    
+    -- Reset state
+    CurrentState = "FARMING"
+    QuestCount = 0
+    WarpedToMine = false
+    
+    Fluent:Notify({Title = "Return", Content = "Resetting character...", Duration = 3})
+    
+    local ResetSuccess = ForceResetCharacter()
+    
+    if ResetSuccess then
+        task.wait(2)
+        
+        local Character = LocalPlayer.Character
+        if Character and Character:FindFirstChild("Humanoid") and Character:FindFirstChild("HumanoidRootPart") then
+            print("✅ Character verified ready for warp")
+        else
+            warn("⚠️ Character may not be fully ready, waiting extra time...")
+            task.wait(2)
+        end
+    else
+        warn("⚠️ Reset function reported failure, waiting 5s...")
+        task.wait(5)
+    end
+    
+    -- Return to farming area
+    Fluent:Notify({Title = "Return", Content = "Returning to Mine's Field...", Duration = 3})
+    
+    for i = 1, 5 do 
+        pcall(function()
+            WarpTo("Mine's Field")
+        end)
         task.wait(1)
     end
+    
+    task.wait(1)
+    Fluent:Notify({Title = "Ready", Content = "Crafting complete!  Resuming.. .", Duration = 3})
 end
 local function Farm_Yui_Quest()
     if _G.IsTransforming then return end
