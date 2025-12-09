@@ -10,7 +10,7 @@ local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.
 -- // 1. WINDOW // --
 local Window = Fluent:CreateWindow({
     Title = "เสี่ยปาล์มขอเงินฟรี",
-    SubTitle = "HALLOWEEN CHEST",
+    SubTitle = "HALLOWEEN CHEST + Open Progrise",
     TabWidth = 160,
     Size = UDim2.fromOffset(580, 460),
     Acrylic = true, 
