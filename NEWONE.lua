@@ -1,5 +1,5 @@
 -- // RIDER WORLD SCRIPT // --
--- // VERSION: FAIZ BLASTER FAST SPAM FIX // --
+-- // VERSION: AUTO ARK QUEST // --
 
 print("Script Loading...")
 
@@ -1399,50 +1399,173 @@ elseif QuestDropdown.Value == "DAGUBA (Auto Dungeon)" then
 elseif QuestDropdown.Value == "Auto Zyga" then
     RunZygaLogic()
 
--- ✅ ARK QUEST
+-- ✅ IMPROVED ARK QUEST WITH FULL LOGIC
 elseif QuestDropdown.Value == "ARK" then
-    local ARKNpc = Workspace.NPC:FindFirstChild("ARKReplicator")
-    if ARKNpc then
-        -- Find the correct part to tween to
-        local ARKPart = ARKNpc.PrimaryPart or ARKNpc:FindFirstChild("ARK Replicator") or ARKNpc:FindFirstChildWhichIsA("BasePart")
+    -- Define positions
+    local ARK_NPC_POSITION = CFrame.new(-1403.94, 0.12, 497.61)
+    local SPAWN_POSITIONS = {
+        CFrame.new(-866.59, 25.52, -288.02),
+        CFrame.new(-1088.06, 2.65, -644.51)
+    }
+    
+    -- Helper function to check quest status
+    local function GetARKQuestStatus()
+        local success, result = pcall(function()
+            local GUI = LocalPlayer.PlayerGui.Main.QuestAlertFrame.QuestGUI
+            local QuestFrame = GUI:FindFirstChild("Desire Games")
+            
+            if QuestFrame and QuestFrame:FindFirstChild("TextLabel") then
+                local TextLabel = QuestFrame.TextLabel
+                if TextLabel.Visible then
+                    -- Quest is active - check if completed
+                    if string.find(TextLabel.Text, "Completed") then
+                        return "COMPLETED"
+                    else
+                        return "ACTIVE"
+                    end
+                end
+            end
+            return "NONE"
+        end)
         
-        if ARKPart then
-            TweenTo(ARKPart.CFrame * CFrame.new(0, 0, 3))
-            task.wait(0.5)
-            
-            -- Click NPC
-            pcall(function()
-                fireclickdetector(ARKNpc.ClickDetector)
-            end)
-            task.wait(1)
-            
-            -- Send dialogue choices
-            pcall(function()
-                DIALOGUE_EVENT:FireServer({Choice = "[ Desire Games ]"})
-            end)
-            task.wait(0.5)
-            
-            pcall(function()
-                DIALOGUE_EVENT:FireServer({Choice = "Completed it."})
-            end)
-            task.wait(0.5)
-            
-            pcall(function()
-                DIALOGUE_EVENT:FireServer({Exit = true})
-            end)
-            task.wait(0.5)
-        else
-            warn("⚠️ ARKReplicator part not found!")
-        end
-    else
-        warn("⚠️ ARKReplicator NPC not found!")
+        return success and result or "NONE"
     end
     
-    -- Kill the enemy
-    if not _G.AutoFarm then break end
-    KillEnemy("Possessed Rider Lv.90")
+    -- Helper function to accept ARK quest
+    local function AcceptARKQuest()
+        Fluent:Notify({Title = "ARK Quest", Content = "Accepting quest...", Duration = 2})
+        
+        -- Step 1: Go to NPC position
+        TweenTo(ARK_NPC_POSITION)
+        task.wait(1)
+        
+        -- Step 2: Find and interact with NPC
+        local ARKNpc = Workspace.NPC:FindFirstChild("ARKReplicator")
+        if ARKNpc then
+            local ARKPart = ARKNpc.PrimaryPart or ARKNpc:FindFirstChild("ARK Replicator") or ARKNpc:FindFirstChildWhichIsA("BasePart")
+            
+            if ARKPart then
+                TweenTo(ARKPart.CFrame * CFrame.new(0, 0, 3))
+                task.wait(0.5)
+                
+                -- Click NPC
+                pcall(function()
+                    fireclickdetector(ARKNpc.ClickDetector)
+                end)
+                task.wait(1)
+                
+                -- Send dialogue to get quest
+                pcall(function()
+                    DIALOGUE_EVENT:FireServer({Choice = "[ Desire Games ]"})
+                end)
+                task.wait(0.5)
+                
+                pcall(function()
+                    DIALOGUE_EVENT:FireServer({Exit = true})
+                end)
+                task.wait(1)
+                
+                Fluent:Notify({Title = "ARK Quest", Content = "Quest accepted!", Duration = 2})
+            else
+                warn("⚠️ ARKReplicator part not found!")
+            end
+        else
+            warn("⚠️ ARKReplicator NPC not found!")
+        end
+    end
+    
+    -- Helper function to turn in completed quest
+    local function TurnInARKQuest()
+        Fluent:Notify({Title = "ARK Quest", Content = "Quest completed! Turning in...", Duration = 2})
+        
+        -- Step 1: Return to NPC position
+        TweenTo(ARK_NPC_POSITION)
+        task.wait(1)
+        
+        -- Step 2: Find and interact with NPC
+        local ARKNpc = Workspace.NPC:FindFirstChild("ARKReplicator")
+        if ARKNpc then
+            local ARKPart = ARKNpc.PrimaryPart or ARKNpc:FindFirstChild("ARK Replicator") or ARKNpc:FindFirstChildWhichIsA("BasePart")
+            
+            if ARKPart then
+                TweenTo(ARKPart.CFrame * CFrame.new(0, 0, 3))
+                task.wait(0.5)
+                
+                -- Click NPC
+                pcall(function()
+                    fireclickdetector(ARKNpc.ClickDetector)
+                end)
+                task.wait(1)
+                
+                -- Turn in quest
+                pcall(function()
+                    DIALOGUE_EVENT:FireServer({Choice = "Completed it."})
+                end)
+                task.wait(0.5)
+                
+                pcall(function()
+                    DIALOGUE_EVENT:FireServer({Exit = true})
+                end)
+                task.wait(1)
+                
+                Fluent:Notify({Title = "ARK Quest", Content = "Quest turned in! Restarting...", Duration = 2})
+            end
+        end
+    end
+    
+    -- Main ARK Quest Logic
+    local Status = GetARKQuestStatus()
+    
+    if Status == "NONE" then
+        -- No quest active, go accept it
+        AcceptARKQuest()
+        
+    elseif Status == "COMPLETED" then
+        -- Quest completed, turn it in
+        TurnInARKQuest()
+        
+    elseif Status == "ACTIVE" then
+        -- Quest active, go kill the enemy
+        if not _G.AutoFarm then break end
+        
+        -- First, check if enemy already spawned
+        local Enemy = LIVES_FOLDER:FindFirstChild("Possessed Rider Lv.90")
+        
+        if Enemy and Enemy:FindFirstChild("HumanoidRootPart") and Enemy:FindFirstChild("Humanoid") and Enemy.Humanoid.Health > 0 then
+            -- Enemy found! Go directly to it
+            Fluent:Notify({Title = "ARK Quest", Content = "Enemy found! Attacking...", Duration = 2})
+            KillEnemy("Possessed Rider Lv.90")
+        else
+            -- Enemy not found, check spawn positions
+            Fluent:Notify({Title = "ARK Quest", Content = "Searching for enemy...", Duration = 2})
+            
+            for i, SpawnPos in ipairs(SPAWN_POSITIONS) do
+                if not _G.AutoFarm then break end
+                
+                -- Go to spawn position
+                TweenTo(SpawnPos)
+                task.wait(1)
+                
+                -- Check if enemy spawned
+                Enemy = LIVES_FOLDER:FindFirstChild("Possessed Rider Lv.90")
+                
+                if Enemy and Enemy:FindFirstChild("HumanoidRootPart") and Enemy:FindFirstChild("Humanoid") and Enemy.Humanoid.Health > 0 then
+                    -- Found the enemy!
+                    Fluent:Notify({Title = "ARK Quest", Content = "Enemy spotted! Attacking...", Duration = 2})
+                    KillEnemy("Possessed Rider Lv.90")
+                    break
+                end
+            end
+            
+            -- If still not found after checking all positions, just kill normally
+            if not _G.AutoFarm then break end
+            KillEnemy("Possessed Rider Lv.90")
+        end
+    end
 
 end -- ✅ CLOSE the main quest selection
+
+task.wait(1)
 
 task.wait(1) -- ✅ ADD THIS LINE (was missing!)
 
@@ -1460,5 +1583,5 @@ InterfaceManager:BuildInterfaceSection(Tabs. Settings)
 SaveManager:BuildConfigSection(Tabs.Settings)
 
 Window:SelectTab(1)
-Fluent:Notify({Title = "Script Loaded", Content = "FAIZ STAMINA + DAGUBA FIX + ARK QUEST", Duration = 5})
+Fluent:Notify({Title = "Script Loaded", Content = "ARK QUEST", Duration = 5})
 SaveManager:LoadAutoloadConfig()
