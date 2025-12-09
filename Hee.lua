@@ -1838,9 +1838,20 @@ elseif QuestDropdown.Value == "ARK + HALLOWEEN CHEST" then
                     elseif ArkStatus == "ACTIVE" then
                         -- Hunt ARK Boss
                         local Enemy = LIVES_FOLDER:FindFirstChild("Possessed Rider Lv.90")
+                        
+                        -- Helper to open cache after kill
+                        local function OpenProgrise()
+                            Fluent:Notify({Title = "ARK", Content = "Opening Progrise Cache...", Duration = 2})
+                            pcall(function() 
+                                game:GetService("ReplicatedStorage").Remote.Function.InventoryFunction:InvokeServer("Progrise Cache")
+                            end)
+                        end
+
                         if Enemy and Enemy:FindFirstChild("Humanoid") and Enemy.Humanoid.Health > 0 then 
                             Fluent:Notify({Title = "ARK", Content = "Fighting Boss...", Duration = 2})
                             KillEnemy("Possessed Rider Lv.90")
+                            -- OPEN CACHE AFTER KILL
+                            OpenProgrise()
                         else
                             -- If not found, scan positions
                             Fluent:Notify({Title = "ARK", Content = "Scanning...", Duration = 1})
@@ -1850,6 +1861,8 @@ elseif QuestDropdown.Value == "ARK + HALLOWEEN CHEST" then
                                 local E = LIVES_FOLDER:FindFirstChild("Possessed Rider Lv.90")
                                 if E and E:FindFirstChild("Humanoid") and E.Humanoid.Health > 0 then 
                                     KillEnemy("Possessed Rider Lv.90")
+                                    -- OPEN CACHE AFTER KILL
+                                    OpenProgrise()
                                     break 
                                 end
                             end
@@ -1885,7 +1898,6 @@ elseif QuestDropdown.Value == "ARK + HALLOWEEN CHEST" then
                             end
                         end
                     end
-
 -- ✅ IMPROVED ARK QUEST WITH FULL LOGIC (keep this as is)
 elseif QuestDropdown.Value == "ARK" then
     -- Define positions
