@@ -2083,5 +2083,5 @@ InterfaceManager:BuildInterfaceSection(Tabs. Settings)
 SaveManager:BuildConfigSection(Tabs.Settings)
 
 Window:SelectTab(1)
-Fluent:Notify({Title = "Script Loaded", Content = "ARK + HALLOWEEN CHEST", Duration = 5})
+Fluent:Notify({Title = "Script Loaded", Content = " Open Progrise", Duration = 5})
 SaveManager:LoadAutoloadConfig()
