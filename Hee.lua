@@ -1,5 +1,5 @@
 -- // RIDER WORLD SCRIPT // --
--- // VERSION: FAIZ V-PRIORITY FIX // --
+-- // VERSION: FAIZ BLASTER FAST SPAM FIX // --
 
 print("Script Loading...")
 
@@ -10,7 +10,7 @@ local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.
 -- // 1. WINDOW // --
 local Window = Fluent:CreateWindow({
     Title = "เสี่ยปาล์มขอเงินฟรี",
-    SubTitle = "Faiz V-Skill Fix",
+    SubTitle = "UPD 12/8/2025",
     TabWidth = 160,
     Size = UDim2.fromOffset(580, 460),
     Acrylic = true, 
@@ -129,6 +129,32 @@ _G.AutoSkill = false
 _G.FormName = "Survive Bat"
 _G.SelectedKeys = { ["E"] = false, ["R"] = false, ["C"] = false, ["V"] = false }
 
+-- // ⭐ NEW: SMART RANDOM SPOT SELECTION // --
+local function GetSmartRandomSpot(currentPosition)
+    local spotWeights = {}
+    local totalWeight = 0
+    
+    -- Calculate distance-based weights (farther = higher priority)
+    for i, spot in ipairs(CHRONOS_SAFE_SPOTS) do
+        local distance = (currentPosition - spot.Position).Magnitude
+        spotWeights[i] = distance
+        totalWeight = totalWeight + distance
+    end
+    
+    -- Weighted random selection
+    local random = math.random() * totalWeight
+    local cumulativeWeight = 0
+    
+    for i, weight in ipairs(spotWeights) do
+        cumulativeWeight = cumulativeWeight + weight
+        if random <= cumulativeWeight then
+            return i
+        end
+    end
+    
+    -- Fallback
+    return math.random(1, #CHRONOS_SAFE_SPOTS)
+end
 -- COMBO SETTINGS
 _G.AutoCombo = false
 _G.ComboName = "Faiz Blaster"
@@ -141,6 +167,62 @@ local function GetRootPart()
     return Character:FindFirstChild("HumanoidRootPart")
 end
 
+-- ✅ ADD THIS NEW FUNCTION HERE:
+local function ForceResetCharacter()
+    Fluent:Notify({Title = "Reset", Content = "Resetting character...", Duration = 3})
+    
+    -- Store old character for comparison
+    local OldCharacter = LocalPlayer.Character
+    
+    -- Method 1: Kill character
+    pcall(function()
+        if OldCharacter and OldCharacter:FindFirstChild("Humanoid") then
+            OldCharacter.Humanoid.Health = 0
+        end
+    end)
+    
+    task.wait(0.5)
+    
+    -- Method 2: LoadCharacter (backup)
+    pcall(function()
+        LocalPlayer:LoadCharacter()
+    end)
+    
+    -- Wait for NEW character to spawn
+    local StartTime = tick()
+    local MaxWaitTime = 15
+    local NewCharacterSpawned = false
+    
+    while (tick() - StartTime) < MaxWaitTime do
+        task.wait(0.5)
+        
+        -- GET FRESH CHARACTER REFERENCE!
+        local CurrentChar = LocalPlayer.Character
+        
+        -- Check if it's a NEW character (different from old one)
+        if CurrentChar and CurrentChar ~= OldCharacter then
+            local Humanoid = CurrentChar:FindFirstChild("Humanoid")
+            local RootPart = CurrentChar:FindFirstChild("HumanoidRootPart")
+            
+            if Humanoid and RootPart and Humanoid.Health > 0 then
+                NewCharacterSpawned = true
+                print("✅ New character spawned successfully!")
+                break
+            end
+        end
+    end
+    
+    if NewCharacterSpawned then
+        Fluent:Notify({Title = "Success", Content = "Character respawned!", Duration = 2})
+        task.wait(2) -- Extra time for character to stabilize
+        return true
+    else
+        warn("⚠️ Character reset timeout after " .. MaxWaitTime .. "s")
+        Fluent:Notify({Title = "Warning", Content = "Reset may have failed", Duration = 5})
+        return false
+    end
+end
+
 local function TweenTo(TargetCFrame, CustomSpeed)
     local RootPart = GetRootPart()
     if not RootPart then return end
@@ -148,6 +230,7 @@ local function TweenTo(TargetCFrame, CustomSpeed)
     if _G.IsTransforming and (tick() - TransformStartTime) > 12 then
         _G.IsTransforming = false
     end
+    -- ... rest of function ...
 
     while _G.IsTransforming and (_G.AutoFarm or _G.AutoBoss) do task.wait(0.5) end
     if not (_G.AutoFarm or _G.AutoBoss) then return end
@@ -159,7 +242,7 @@ local function TweenTo(TargetCFrame, CustomSpeed)
     local Info = TweenInfo.new(Time, Enum.EasingStyle.Linear)
     local Tween = TweenService:Create(RootPart, Info, {CFrame = TargetCFrame})
     Tween:Play()
-    
+
     local Connection
     Connection = RunService.Stepped:Connect(function()
         if not (_G.AutoFarm or _G.AutoBoss) then Tween:Cancel(); Connection:Disconnect() end
@@ -240,15 +323,17 @@ local function DoCombat()
     end
 end
 
--- // COMBO LOGIC // --
+-- // COMBO HELPER FUNCTIONS // --
 local function CheckFaizMode()
     local isMode = false
+    -- 1. Check UI Text (Mode Active?)
     pcall(function()
         local cdText = LocalPlayer.PlayerGui.Main.PreviewCore.CD_TEXT
         if cdText and cdText.Visible and cdText.Text ~= "" then
             isMode = true
         end
     end)
+    -- 2. Safety Stamina Check
     if isMode then
         local Stats = LocalPlayer:FindFirstChild("RiderStats")
         if Stats and Stats:FindFirstChild("Stamina") and Stats.Stamina.Value <= 0 then
@@ -266,31 +351,49 @@ local function GetStamina()
     return 0
 end
 
+local function CheckCombatText()
+    local success, visible = pcall(function()
+        return LocalPlayer.PlayerGui.Main.CombatText.Visible
+    end)
+    return success and visible
+end
+
+-- // UPDATED COMBO LOGIC // --
 local function RunCombo(Target)
     if not Target or not Target:FindFirstChild("Humanoid") or Target.Humanoid.Health <= 0 then return end
     
     if _G.ComboName == "Faiz Blaster" then
         if CheckFaizMode() then
-            -- 1. USE SKILL V IMMEDIATELY
-            FireSkill("V")
-            task.wait(0.2)
-
-            -- 2. CHECK STAMINA FOR R AND E
-            local stamina = GetStamina()
-            
-            if stamina > 500 then
-                FireSkill("R"); task.wait(0.2)
-                if stamina > 1300 then
-                    FireSkill("E"); task.wait(0.2)
+            -- NEW CHECK: If CombatText is visible, JUST M1
+            if CheckCombatText() then
+                 -- Visible == True that mean Spam M1
+                 FireAttack()
+                 task.wait() -- FAST SPAM
+            else
+                 -- Visible == False -> Use Skills (V Priority)
+                 
+                 -- 1. USE SKILL V FIRST (Priority)
+                FireSkill("V")
+                task.wait(0.15)
+                
+                -- 2. CHECK STAMINA FOR R AND E
+                local stamina = GetStamina()
+                
+                if stamina > 500 then
+                    FireSkill("R"); task.wait(0.15)
+                    if stamina > 1300 then
+                        FireSkill("E"); task.wait(0.15)
+                    end
+                end
+                
+                -- 3. FASTER M1 BURST
+                for i=1, 8 do 
+                    FireAttack()
+                    task.wait() -- Minimal wait for max spam
                 end
             end
-            
-            -- 3. M1 BURST
-            for i=1, 4 do 
-                FireAttack()
-                task.wait(0.1)
-            end
         else
+            -- Not in Blaster Mode? Use standard settings
             DoCombat()
         end
         
@@ -477,27 +580,51 @@ local function KillBossByName(BossName)
             
             local ShouldAttack = true
             
-            if BossName == "Cronus Lv.90" then
-                local Judgement = Target:FindFirstChild("JudgementCalled")
-                if Judgement then
-                    if not IsRetreating then
-                        IsRetreating = true; Fluent:Notify({Title = "EVADE!", Content = "Judgement Detected! Running...", Duration = 2})
-                    end
-                    while Target and Target.Parent and Target:FindFirstChild("JudgementCalled") and _G.AutoBoss do
-                         local SafeSpot = CHRONOS_SAFE_SPOTS[ChronosSpotIndex]
-                         TweenTo(SafeSpot, 70) 
-                         if (GetRootPart().Position - SafeSpot.Position).Magnitude < 15 then
-                             ChronosSpotIndex = ChronosSpotIndex + 1; if ChronosSpotIndex > 4 then ChronosSpotIndex = 1 end
-                         end
-                         task.wait(0.1)
-                    end
-                    while Target and Target.Parent and (GetRootPart().Position - Target.HumanoidRootPart.Position).Magnitude > 15 do
-                        if not _G.AutoBoss then break end
-                        TweenTo(Target.HumanoidRootPart.CFrame * CFrame.new(0, 2, _G.AttackDist), 70)
-                    end
-                    IsRetreating = false
-                else IsRetreating = false end
+            -- ⭐ IMPROVED CHRONOS EVASION WITH RANDOMIZATION ⭐
+if BossName == "Cronus Lv.90" then
+    local Judgement = Target:FindFirstChild("JudgementCalled")
+    if Judgement then
+        if not IsRetreating then
+            IsRetreating = true
+            Fluent:Notify({
+                Title = "EVADE!", 
+                Content = "Judgement! Smart Random Evasion!", 
+                Duration = 2
+            })
+        end
+        
+        while Target and Target.Parent and Target:FindFirstChild("JudgementCalled") and _G.AutoBoss do
+            local SafeSpot = CHRONOS_SAFE_SPOTS[ChronosSpotIndex]
+            local MyRoot = GetRootPart()
+            
+            if not MyRoot then break end
+            
+            TweenTo(SafeSpot, 70)
+            
+            -- When reaching spot, pick smart random next location
+            if (MyRoot.Position - SafeSpot.Position).Magnitude < 15 then
+                -- Get weighted random spot (prefers distant locations)
+                ChronosSpotIndex = GetSmartRandomSpot(MyRoot.Position)
+                
+                -- Random human-like delay
+                task.wait(math.random(15, 35) / 100) -- 0.15 to 0.35 seconds
             end
+            
+            task.wait(0.1)
+        end
+        
+        -- Return to boss after judgement ends
+        while Target and Target.Parent and (GetRootPart().Position - Target.HumanoidRootPart.Position).Magnitude > 15 do
+            if not _G.AutoBoss then break end
+            TweenTo(Target.HumanoidRootPart.CFrame * CFrame.new(0, 2, _G.AttackDist), 70)
+            task.wait(0.1)
+        end
+        
+        IsRetreating = false
+    else 
+        IsRetreating = false 
+    end
+end
 
             if _G.IsTransforming then repeat task.wait(0.2) until not _G.IsTransforming 
             else if not IsRetreating then 
@@ -690,63 +817,164 @@ local function Accept_MinerGoon_Quest()
     end
 end
 local function CloseCraftingGUI()
-    local GUI = LocalPlayer.PlayerGui:FindFirstChild("CraftingGUI")
+    local GUI = LocalPlayer. PlayerGui:FindFirstChild("CraftingGUI")
     if GUI then
         local ExitBtn = GUI:FindFirstChild("Exit") 
         if ExitBtn then
             if VirtualInputManager then
-                 VirtualInputManager:SendMouseButtonEvent(ExitBtn.AbsolutePosition.X+10, ExitBtn.AbsolutePosition.Y+10, 0, true, game, 1)
-                 task.wait(0.05)
-                 VirtualInputManager:SendMouseButtonEvent(ExitBtn.AbsolutePosition.X+10, ExitBtn.AbsolutePosition.Y+10, 0, false, game, 1)
+                pcall(function()
+                    VirtualInputManager:SendMouseButtonEvent(ExitBtn.AbsolutePosition.X+10, ExitBtn.AbsolutePosition.Y+10, 0, true, game, 1)
+                    task.wait(0.05)
+                    VirtualInputManager:SendMouseButtonEvent(ExitBtn.AbsolutePosition.X+10, ExitBtn.AbsolutePosition.Y+10, 0, false, game, 1)
+                end)
             end
-            for _, c in pairs(getconnections(ExitBtn.MouseButton1Click)) do c:Fire() end
+            
+            -- ✅ FIX: Wrap in pcall to avoid nil errors
+            pcall(function()
+                for _, c in pairs(getconnections(ExitBtn.MouseButton1Click)) do 
+                    c:Fire() 
+                end 
+            end)
         end
-        DIALOGUE_EVENT:FireServer({Exit = true})
+        
+        -- ✅ FIX: Safely close dialogue
+        pcall(function()
+            DIALOGUE_EVENT:FireServer({Exit = true})
+        end)
     end
+    
+    -- ✅ FIX: Safely unanchor character
     local Char = LocalPlayer.Character
-    if Char and Char:FindFirstChild("HumanoidRootPart") then Char.HumanoidRootPart.Anchored = false end
+    if Char and Char:FindFirstChild("HumanoidRootPart") then 
+        pcall(function()
+            Char.HumanoidRootPart.Anchored = false
+        end)
+    end
 end
 local function RunCraftingRoutine()
-    WarpTo("Rider's Center"); Fluent:Notify({Title = "Crafting", Content = "Warping...", Duration = 3})
+    WarpTo("Rider's Center")
+    Fluent:Notify({Title = "Crafting", Content = "Warping.. .", Duration = 3})
     task.wait(6)
+    
     local NPC = Workspace.NPC:FindFirstChild("UniversalCrafting")
-    if NPC then
-        TweenTo(NPC.HumanoidRootPart.CFrame * CFrame.new(0,0,3))
-        fireclickdetector(NPC.ClickDetector); task.wait(1)
-        DIALOGUE_EVENT:FireServer({Choice = "[ Craft ]"}); task.wait(1)
-        CraftStatusSignal = "IDLE"
-        local Con = CRAFTING_EVENT.OnClientEvent:Connect(function(Data)
-            if type(Data) == "table" and Data.Callback then
-                local msg = string.lower(Data.Callback)
-                if string.find(msg, "limit") or string.find(msg, "max") then CraftStatusSignal = "MAX"
-                elseif string.find(msg, "not enough") then CraftStatusSignal = "EMPTY" end
-            end
-        end)
-        local Start = tick()
-        local Items = {"Blue Fragment", "Red Fragment", "Blue Sappyre", "Red Emperor"}
-        local Stop = false
-        for _, Item in ipairs(Items) do
-            if not _G.AutoFarm or Stop then break end
-            local Active = true
-            local Att = 0
-            while _G.AutoFarm and Active do
-                CraftStatusSignal = "IDLE"
-                CRAFTING_EVENT:FireServer("Special", Item); task.wait(0.3); Att = Att + 1
-                if CraftStatusSignal == "MAX" then Active = false
-                elseif CraftStatusSignal == "EMPTY" then Active = false; Stop = true
-                elseif Att > 20 then Active = false end
-                if (tick() - Start) > 60 then Stop = true; break end
+    if not NPC then
+        warn("⚠️ UniversalCrafting NPC not found!")
+        Fluent:Notify({Title = "Error", Content = "NPC not found", Duration = 5})
+        return
+    end
+    
+    -- ✅ FIX: Add more safety checks
+    local NPCRoot = NPC:FindFirstChild("HumanoidRootPart")
+    if not NPCRoot then
+        warn("⚠️ NPC HumanoidRootPart not found!")
+        return
+    end
+    
+    TweenTo(NPCRoot. CFrame * CFrame.new(0,0,3))
+    task.wait(0.5)
+    
+    -- ✅ FIX: Safely fire click detector
+    pcall(function()
+        fireclickdetector(NPC. ClickDetector)
+    end)
+    task.wait(1)
+    
+    -- ✅ FIX: Safely send dialogue
+    pcall(function()
+        DIALOGUE_EVENT:FireServer({Choice = "[ Craft ]"})
+    end)
+    task.wait(1)
+    
+    CraftStatusSignal = "IDLE"
+    local Con = CRAFTING_EVENT. OnClientEvent:Connect(function(Data)
+        if type(Data) == "table" and Data. Callback then
+            local msg = string.lower(Data.Callback)
+            if string.find(msg, "limit") or string. find(msg, "max") then 
+                CraftStatusSignal = "MAX"
+            elseif string.find(msg, "not enough") then 
+                CraftStatusSignal = "EMPTY"
             end
         end
-        if Con then Con:Disconnect() end
-        CloseCraftingGUI(); task.wait(1)
-        CurrentState = "FARMING"; QuestCount = 0; WarpedToMine = false
-        Fluent:Notify({Title = "Return", Content = "Respawning to Clear UI...", Duration = 3})
-        if LocalPlayer.Character then LocalPlayer.Character.Humanoid.Health = 0 end
-        LocalPlayer.CharacterAdded:Wait(); task.wait(2)
-        for i=1,5 do WarpTo("Mine's Field"); task.wait(0.5) end
+    end)
+    
+    local Start = tick()
+    local Items = {"Blue Fragment", "Red Fragment", "Blue Sappyre", "Red Emperor"}
+    local Stop = false
+    
+    for _, Item in ipairs(Items) do
+        if not _G.AutoFarm or Stop then break end
+        local Active = true
+        local Att = 0
+        
+        while _G.AutoFarm and Active do
+            CraftStatusSignal = "IDLE"
+            
+            -- ✅ FIX: Wrap in pcall
+            pcall(function()
+                CRAFTING_EVENT:FireServer("Special", Item)
+            end)
+            
+            task.wait(0.3)
+            Att = Att + 1
+            
+            if CraftStatusSignal == "MAX" then 
+                Active = false
+            elseif CraftStatusSignal == "EMPTY" then 
+                Active = false
+                Stop = true
+            elseif Att > 20 then 
+                Active = false
+            end
+            
+            if (tick() - Start) > 60 then 
+                Stop = true
+                break 
+            end
+        end
+    end
+    
+    if Con then Con:Disconnect() end
+    
+    -- ✅ FIX: Use the improved reset function
+    CloseCraftingGUI()
+    task.wait(1)
+    
+    -- Reset state
+    CurrentState = "FARMING"
+    QuestCount = 0
+    WarpedToMine = false
+    
+    Fluent:Notify({Title = "Return", Content = "Resetting character...", Duration = 3})
+    
+    local ResetSuccess = ForceResetCharacter()
+    
+    if ResetSuccess then
+        task.wait(2)
+        
+        local Character = LocalPlayer.Character
+        if Character and Character:FindFirstChild("Humanoid") and Character:FindFirstChild("HumanoidRootPart") then
+            print("✅ Character verified ready for warp")
+        else
+            warn("⚠️ Character may not be fully ready, waiting extra time...")
+            task.wait(2)
+        end
+    else
+        warn("⚠️ Reset function reported failure, waiting 5s...")
+        task.wait(5)
+    end
+    
+    -- Return to farming area
+    Fluent:Notify({Title = "Return", Content = "Returning to Mine's Field...", Duration = 3})
+    
+    for i = 1, 5 do 
+        pcall(function()
+            WarpTo("Mine's Field")
+        end)
         task.wait(1)
     end
+    
+    task.wait(1)
+    Fluent:Notify({Title = "Ready", Content = "Crafting complete!  Resuming.. .", Duration = 3})
 end
 local function Farm_Yui_Quest()
     if _G.IsTransforming then return end
@@ -801,7 +1029,7 @@ local function Summon_Agito()
     end
 end
 
--- // DAGUBA: FORCE ENTRY (NO UI CHECK) // --
+-- // DAGUBA FIX // --
 local function GetDagubaQuestStatus()
     local GUI = LocalPlayer.PlayerGui.Main.QuestAlertFrame.QuestGUI
     if GUI:FindFirstChild("Ancient Argument") and GUI["Ancient Argument"].Visible then
@@ -814,10 +1042,7 @@ local function Accept_Daguba_Quest()
     if NPC then
         TweenTo(NPC.HumanoidRootPart.CFrame * CFrame.new(0,0,3))
         fireclickdetector(NPC.ClickDetector); task.wait(1)
-        
-        -- Use Status Check to avoid spamming unnecessary dialog
         local Status = GetDagubaQuestStatus()
-        
         if Status == "NONE" or Status == "COMPLETED" then
              DIALOGUE_EVENT:FireServer({Choice = "Yes, I've completed it."}); task.wait(0.5)
              DIALOGUE_EVENT:FireServer({Choice = "Can I get another quest?"}); task.wait(0.5)
@@ -828,6 +1053,31 @@ local function Accept_Daguba_Quest()
         end
         task.wait(1); _G.QuestingMode = false
     end
+end
+
+local function Kill_Mob_Daguba(Target)
+    local RootPart = GetRootPart(); local Hum = Target:FindFirstChild("Humanoid"); local HRP = Target:FindFirstChild("HumanoidRootPart")
+    if not Hum or not HRP or not RootPart then return end
+    TweenTo(HRP.CFrame * CFrame.new(0, 2, _G.AttackDist), 60)
+    local Sticker = RunService.Heartbeat:Connect(function()
+        local MyRoot = GetRootPart(); if not MyRoot then return end
+        if _G.AutoFarm and Target and Target.Parent == LIVES_FOLDER and Target:FindFirstChild("HumanoidRootPart") and Target.Humanoid.Health > 0 then
+            if not _G.IsTransforming then
+                local EnemyCF = Target.HumanoidRootPart.CFrame
+                local BehindPosition = EnemyCF * CFrame.new(0, HEIGHT_OFFSET, _G.AttackDist)
+                MyRoot.CFrame = CFrame.new(BehindPosition.Position, EnemyCF.Position)
+                MyRoot.Velocity = Vector3.zero
+            end
+        else if Sticker then Sticker:Disconnect() end end
+    end)
+    while _G.AutoFarm and Target.Parent == LIVES_FOLDER do
+        if Hum.Health <= 0 then break end
+        if _G.IsTransforming then repeat task.wait(0.2) until not _G.IsTransforming else 
+            if _G.AutoCombo then RunCombo(Target) else DoCombat() end
+        end
+        task.wait(ATTACK_SPEED)
+    end
+    if Sticker then Sticker:Disconnect() end
 end
 
 local function Clear_Daguba_Room()
@@ -875,6 +1125,10 @@ local function Run_Daguba_Sequence()
                        TweenTo(Part.CFrame * CFrame.new(0,0,3))
                        local P = Target:FindFirstChildWhichIsA("ProximityPrompt", true)
                        if P then Press_E_Virtual(P, 2) end 
+                       
+                       -- ADDED WAIT AFTER SUMMON (CRITICAL FIX)
+                       task.wait(1.5)
+                       
                        Clear_Daguba_Room()
                   end
              end
@@ -907,7 +1161,17 @@ local YuiSection = Tabs.Main:AddSection("YUI QUEST")
 
 local QuestDropdown = Tabs.Main:AddDropdown("QuestSelect", {
     Title = "Select Quest",
-    Values = {"quest 1-40", "Mummy (40-80)", "Auto 40-80", "Auto Rook&Bishop", "AGITO (Shoichi)", "Auto Miner Goon", "DAGUBA (Auto Dungeon)", "Auto Zyga"},
+    Values = {
+        "quest 1-40", 
+        "Mummy (40-80)", 
+        "Auto 40-80", 
+        "Auto Rook&Bishop", 
+        "AGITO (Shoichi)", 
+        "Auto Miner Goon", 
+        "DAGUBA (Auto Dungeon)", 
+        "Auto Zyga",
+        "ARK"  -- ✅ ADD THIS LINE
+    },
     Multi = false,
     Default = 1,
 })
@@ -953,7 +1217,7 @@ end)
 
 local PreparationSection = Tabs.Main:AddSection("PREPARATION")
 local ToggleHenshin = Tabs.Main:AddToggle("AutoHenshin", {Title = "Auto Henshin (H)", Default = true })
-ToggleHenshin:OnChanged(function() _G.AutoHenshin = Options.AutoHenshin.Value end)
+ToggleHenshin:OnChanged(function() _G.AutoHenshin = Options.AutoHenshin. Value end)
 local ToggleEquip = Tabs.Main:AddToggle("AutoEquip", {Title = "Auto Equip Weapon", Default = true })
 ToggleEquip:OnChanged(function() _G.AutoEquip = Options.AutoEquip.Value end)
 
@@ -1016,136 +1280,308 @@ FarmToggle:OnChanged(function()
                 while _G.IsTransforming do task.wait(0.5) end
                 
                 if QuestDropdown.Value == "quest 1-40" then
-                    if _G.AutoQuest then Farm_Yui_Quest() end
-                    if not _G.AutoFarm then break end
-                    KillEnemy("Dragon User Lv.7"); task.wait(ATTACK_SPEED)
-                    if not _G.AutoFarm then break end
-                    KillEnemy("Crab User Lv.10"); task.wait(ATTACK_SPEED)
-                    if not _G.AutoFarm then break end
-                    KillEnemy("Bat User Lv.12")
-                    if _G.AutoQuest and _G.AutoFarm then WaitForQuestCompletion("Dragon's Alliance") end
-                
-                elseif QuestDropdown.Value == "Mummy (40-80)" then
-                    local Status = GetWindQuestStatus()
-                    if Status == "COMPLETED" or Status == "NONE" then
-                        if _G.AutoQuest then Accept_Wind_Quest() end
-                    elseif Status == "ACTIVE" then
-                        if not _G.AutoFarm then break end
-                        KillEnemy("Mummy Lv.40")
-                    end
-                
-                elseif QuestDropdown.Value == "Auto 40-80" then
-                    local Status = GetMalcomQuestStatus()
-                    if Status == "COMPLETED" or Status == "NONE" then
-                        if _G.AutoQuest then Accept_Malcom_Quest() end
-                    elseif Status == "ACTIVE" then
-                        if not _G.AutoFarm then break end
-                        local M1 = LIVES_FOLDER:FindFirstChild("Dark Dragon User Lv.40")
-                        local M2 = LIVES_FOLDER:FindFirstChild("Gazelle User Lv.45")
-                        if M1 then KillEnemy("Dark Dragon User Lv.40")
-                        elseif M2 then KillEnemy("Gazelle User Lv.45") end
-                    end
-                
-                elseif QuestDropdown.Value == "Auto Rook&Bishop" then
-                    local Status = GetRookBishopQuestStatus()
-                    if Status == "COMPLETED" or Status == "NONE" then
-                        if _G.AutoQuest then Accept_RookBishop_Quest() end
-                    elseif Status == "ACTIVE" then
-                        if not _G.AutoFarm then break end
-                        Summon_RookBishop()
-                        if not _G.AutoFarm then break end
-                        if LIVES_FOLDER:FindFirstChild("Bishop Lv.80") then KillEnemy("Bishop Lv.80") end
-                        if LIVES_FOLDER:FindFirstChild("Rook Lv.80") then KillEnemy("Rook Lv.80") end
-                    end
-                
-                 elseif QuestDropdown.Value == "AGITO (Shoichi)" then
-                    local AgitoStatus = Check_Agito_Quest_Active() 
-                    if _G.AutoQuest then
-                        if AgitoStatus == "COMPLETED" or AgitoStatus == "NONE" then Farm_Agito_Quest() end
-                        if Check_Agito_Quest_Active() == "ACTIVE" then
-                            if not _G.AutoFarm then break end
-                            Summon_Agito(); if not _G.AutoFarm then break end
-                            KillEnemy("Agito Lv.90") 
-                            if _G.AutoQuest and _G.AutoFarm then WaitForQuestCompletion("Agito") end
-                        end
-                    else
-                         if not _G.AutoFarm then break end
-                         KillEnemy("Agito Lv.90") 
-                    end
-                elseif QuestDropdown.Value == "Auto Miner Goon" then
-                     if CurrentState == "FARMING" then
-                        if QuestCount >= MaxQuests then
-                            CurrentState = "CRAFTING"
-                            RunCraftingRoutine()
-                        else
-                            if not WarpedToMine then
-                                Fluent:Notify({Title = "Status", Content = "Starting... Warping to Mine first!", Duration = 3})
-                                for i=1,5 do WarpTo("Mine's Field"); task.wait(0.2) end
-                                task.wait(3); WarpedToMine = true
-                            end
-                            if _G.AutoQuest then
-                                local Status = GetMinerGoonQuestStatus()
-                                if Status == "COMPLETED" or Status == "NONE" then Accept_MinerGoon_Quest()
-                                elseif Status == "ACTIVE" then
-                                    if not _G.AutoFarm then break end
-                                    KillEnemy("Miner Goon Lv.50")
-                                end
-                            else KillEnemy("Miner Goon Lv.50") end
-                        end
-                    elseif CurrentState == "CRAFTING" then end
-                
-                -- // DAGUBA FIX // --
-                elseif QuestDropdown.Value == "DAGUBA (Auto Dungeon)" then
-                     local Status = GetDagubaQuestStatus()
-                    
-                    if Status == "COMPLETED" then
-                        CancelMovement()
-                        Fluent:Notify({Title = "Daguba", Content = "Quest Completed! Waiting 20s...", Duration = 5})
-                        for i = 1, 20 do if not _G.AutoFarm then break end task.wait(1) end
-                        if _G.AutoFarm then Accept_Daguba_Quest() end
-                        
-                    elseif IsInAncientDungeon() then
-                        Run_Daguba_Sequence() -- Already inside, clear room
-                        task.wait(2)
-                        
-                    elseif Status == "NONE" then
-                        Accept_Daguba_Quest()
-                        
-                    elseif Status == "ACTIVE" then
-                        if not IsEnteringDungeon then
-                            IsEnteringDungeon = true
-                            -- FORCE ENTRY (Removed notification check)
-                            RIDER_TRIAL_EVENT:FireServer("Trial of Ancient") 
-                            
-                            local T = 0
-                            repeat 
-                                task.wait(1)
-                                T = T + 1
-                            until IsInAncientDungeon() or T > 10 or not _G.AutoFarm
-                            
-                            IsEnteringDungeon = false
-                        end
-                        task.wait(2)
-                    end
-                
-                elseif QuestDropdown.Value == "Auto Zyga" then
-                     RunZygaLogic()
-                end
-                
-                task.wait(1)
+    if _G.AutoQuest then Farm_Yui_Quest() end
+    if not _G.AutoFarm then break end
+    KillEnemy("Dragon User Lv.7"); task.wait(ATTACK_SPEED)
+    if not _G.AutoFarm then break end
+    KillEnemy("Crab User Lv.10"); task.wait(ATTACK_SPEED)
+    if not _G.AutoFarm then break end
+    KillEnemy("Bat User Lv.12")
+    if _G.AutoQuest and _G.AutoFarm then WaitForQuestCompletion("Dragon's Alliance") end
+
+elseif QuestDropdown.Value == "Mummy (40-80)" then
+    local Status = GetWindQuestStatus()
+    if Status == "COMPLETED" or Status == "NONE" then
+        if _G.AutoQuest then Accept_Wind_Quest() end
+    elseif Status == "ACTIVE" then
+        if not _G.AutoFarm then break end
+        KillEnemy("Mummy Lv.40")
+    end
+
+elseif QuestDropdown.Value == "Auto 40-80" then
+    local Status = GetMalcomQuestStatus()
+    if Status == "COMPLETED" or Status == "NONE" then
+        if _G.AutoQuest then Accept_Malcom_Quest() end
+    elseif Status == "ACTIVE" then
+        if not _G.AutoFarm then break end
+        local M1 = LIVES_FOLDER:FindFirstChild("Dark Dragon User Lv.40")
+        local M2 = LIVES_FOLDER:FindFirstChild("Gazelle User Lv.45")
+        if M1 then KillEnemy("Dark Dragon User Lv.40")
+        elseif M2 then KillEnemy("Gazelle User Lv.45") end
+    end
+
+elseif QuestDropdown.Value == "Auto Rook&Bishop" then
+    local Status = GetRookBishopQuestStatus()
+    if Status == "COMPLETED" or Status == "NONE" then
+        if _G.AutoQuest then Accept_RookBishop_Quest() end
+    elseif Status == "ACTIVE" then
+        if not _G.AutoFarm then break end
+        Summon_RookBishop()
+        if not _G.AutoFarm then break end
+        if LIVES_FOLDER:FindFirstChild("Bishop Lv.80") then KillEnemy("Bishop Lv.80") end
+        if LIVES_FOLDER:FindFirstChild("Rook Lv.80") then KillEnemy("Rook Lv.80") end
+    end
+
+elseif QuestDropdown.Value == "AGITO (Shoichi)" then
+    local AgitoStatus = Check_Agito_Quest_Active() 
+    if _G.AutoQuest then
+        if AgitoStatus == "COMPLETED" or AgitoStatus == "NONE" then Farm_Agito_Quest() end
+        if Check_Agito_Quest_Active() == "ACTIVE" then
+            if not _G.AutoFarm then break end
+            Summon_Agito(); if not _G.AutoFarm then break end
+            KillEnemy("Agito Lv.90") 
+            if _G.AutoQuest and _G.AutoFarm then WaitForQuestCompletion("Agito") end
+        end
+    else
+        if not _G.AutoFarm then break end
+        KillEnemy("Agito Lv.90") 
+    end
+
+elseif QuestDropdown.Value == "Auto Miner Goon" then
+    if CurrentState == "FARMING" then
+        if QuestCount >= MaxQuests then
+            CurrentState = "CRAFTING"
+            RunCraftingRoutine()
+        else
+            if not WarpedToMine then
+                Fluent:Notify({Title = "Status", Content = "Starting... Warping to Mine first!", Duration = 3})
+                for i=1,5 do WarpTo("Mine's Field"); task.wait(0.2) end
+                task.wait(3); WarpedToMine = true
             end
+            if _G.AutoQuest then
+                local Status = GetMinerGoonQuestStatus()
+                if Status == "COMPLETED" or Status == "NONE" then 
+                    Accept_MinerGoon_Quest()
+                elseif Status == "ACTIVE" then
+                    if not _G.AutoFarm then break end
+                    KillEnemy("Miner Goon Lv.50")
+                end
+            else 
+                KillEnemy("Miner Goon Lv.50") 
+            end
+        end
+    elseif CurrentState == "CRAFTING" then
+        -- Crafting in progress
+    end
+
+elseif QuestDropdown.Value == "DAGUBA (Auto Dungeon)" then
+    local Status = GetDagubaQuestStatus()
+    
+    if Status == "COMPLETED" then
+        CancelMovement()
+        Fluent:Notify({Title = "Daguba", Content = "Quest Completed! Waiting 20s...", Duration = 5})
+        for i = 1, 20 do if not _G.AutoFarm then break end task.wait(1) end
+        if _G.AutoFarm then Accept_Daguba_Quest() end
+        
+    elseif IsInAncientDungeon() then
+        Run_Daguba_Sequence()
+        task.wait(2)
+        
+    elseif Status == "NONE" then
+        Accept_Daguba_Quest()
+        
+    elseif Status == "ACTIVE" then
+        if not IsEnteringDungeon then
+            IsEnteringDungeon = true
+            RIDER_TRIAL_EVENT:FireServer("Trial of Ancient") 
+            
+            local T = 0
+            repeat 
+                task.wait(1)
+                T = T + 1
+            until IsInAncientDungeon() or T > 10 or not _G.AutoFarm
+            
+            IsEnteringDungeon = false
+        end
+        task.wait(2)
+    end
+
+elseif QuestDropdown.Value == "Auto Zyga" then
+    RunZygaLogic()
+
+-- ✅ IMPROVED ARK QUEST WITH FULL LOGIC
+elseif QuestDropdown.Value == "ARK" then
+    -- Define positions
+    local ARK_NPC_POSITION = CFrame.new(-1403.94, 0.12, 497.61)
+    local SPAWN_POSITIONS = {
+        CFrame.new(-866.59, 25.52, -288.02),
+        CFrame.new(-1088.06, 2.65, -644.51)
+    }
+    
+    -- Helper function to check quest status
+    local function GetARKQuestStatus()
+        local success, result = pcall(function()
+            local GUI = LocalPlayer.PlayerGui.Main.QuestAlertFrame.QuestGUI
+            local QuestFrame = GUI:FindFirstChild("Desire Games")
+            
+            if QuestFrame and QuestFrame:FindFirstChild("TextLabel") then
+                local TextLabel = QuestFrame.TextLabel
+                if TextLabel.Visible then
+                    -- Quest is active - check if completed
+                    if string.find(TextLabel.Text, "Completed") then
+                        return "COMPLETED"
+                    else
+                        return "ACTIVE"
+                    end
+                end
+            end
+            return "NONE"
+        end)
+        
+        return success and result or "NONE"
+    end
+    
+    -- Helper function to accept ARK quest
+    local function AcceptARKQuest()
+        Fluent:Notify({Title = "ARK Quest", Content = "Accepting quest...", Duration = 2})
+        
+        -- Step 1: Go to NPC position
+        TweenTo(ARK_NPC_POSITION)
+        task.wait(1)
+        
+        -- Step 2: Find and interact with NPC
+        local ARKNpc = Workspace.NPC:FindFirstChild("ARKReplicator")
+        if ARKNpc then
+            local ARKPart = ARKNpc.PrimaryPart or ARKNpc:FindFirstChild("ARK Replicator") or ARKNpc:FindFirstChildWhichIsA("BasePart")
+            
+            if ARKPart then
+                TweenTo(ARKPart.CFrame * CFrame.new(0, 0, 3))
+                task.wait(0.5)
+                
+                -- Click NPC
+                pcall(function()
+                    fireclickdetector(ARKNpc.ClickDetector)
+                end)
+                task.wait(1)
+                
+                -- Send dialogue to get quest
+                pcall(function()
+                    DIALOGUE_EVENT:FireServer({Choice = "[ Desire Games ]"})
+                end)
+                task.wait(0.5)
+                
+                pcall(function()
+                    DIALOGUE_EVENT:FireServer({Exit = true})
+                end)
+                task.wait(1)
+                
+                Fluent:Notify({Title = "ARK Quest", Content = "Quest accepted!", Duration = 2})
+            else
+                warn("⚠️ ARKReplicator part not found!")
+            end
+        else
+            warn("⚠️ ARKReplicator NPC not found!")
+        end
+    end
+    
+    -- Helper function to turn in completed quest
+    local function TurnInARKQuest()
+        Fluent:Notify({Title = "ARK Quest", Content = "Quest completed! Turning in...", Duration = 2})
+        
+        -- Step 1: Return to NPC position
+        TweenTo(ARK_NPC_POSITION)
+        task.wait(1)
+        
+        -- Step 2: Find and interact with NPC
+        local ARKNpc = Workspace.NPC:FindFirstChild("ARKReplicator")
+        if ARKNpc then
+            local ARKPart = ARKNpc.PrimaryPart or ARKNpc:FindFirstChild("ARK Replicator") or ARKNpc:FindFirstChildWhichIsA("BasePart")
+            
+            if ARKPart then
+                TweenTo(ARKPart.CFrame * CFrame.new(0, 0, 3))
+                task.wait(0.5)
+                
+                -- Click NPC
+                pcall(function()
+                    fireclickdetector(ARKNpc.ClickDetector)
+                end)
+                task.wait(1)
+                
+                -- Turn in quest
+                pcall(function()
+                    DIALOGUE_EVENT:FireServer({Choice = "Completed it."})
+                end)
+                task.wait(0.5)
+                
+                pcall(function()
+                    DIALOGUE_EVENT:FireServer({Exit = true})
+                end)
+                task.wait(1)
+                
+                Fluent:Notify({Title = "ARK Quest", Content = "Quest turned in! Restarting...", Duration = 2})
+            end
+        end
+    end
+    
+    -- Main ARK Quest Logic
+    local Status = GetARKQuestStatus()
+    
+    if Status == "NONE" then
+        -- No quest active, go accept it
+        AcceptARKQuest()
+        
+    elseif Status == "COMPLETED" then
+        -- Quest completed, turn it in
+        TurnInARKQuest()
+        
+    elseif Status == "ACTIVE" then
+        -- Quest active, go kill the enemy
+        if not _G.AutoFarm then break end
+        
+        -- First, check if enemy already spawned
+        local Enemy = LIVES_FOLDER:FindFirstChild("Possessed Rider Lv.90")
+        
+        if Enemy and Enemy:FindFirstChild("HumanoidRootPart") and Enemy:FindFirstChild("Humanoid") and Enemy.Humanoid.Health > 0 then
+            -- Enemy found! Go directly to it
+            Fluent:Notify({Title = "ARK Quest", Content = "Enemy found! Attacking...", Duration = 2})
+            KillEnemy("Possessed Rider Lv.90")
+        else
+            -- Enemy not found, check spawn positions
+            Fluent:Notify({Title = "ARK Quest", Content = "Searching for enemy...", Duration = 2})
+            
+            for i, SpawnPos in ipairs(SPAWN_POSITIONS) do
+                if not _G.AutoFarm then break end
+                
+                -- Go to spawn position
+                TweenTo(SpawnPos)
+                task.wait(1)
+                
+                -- Check if enemy spawned
+                Enemy = LIVES_FOLDER:FindFirstChild("Possessed Rider Lv.90")
+                
+                if Enemy and Enemy:FindFirstChild("HumanoidRootPart") and Enemy:FindFirstChild("Humanoid") and Enemy.Humanoid.Health > 0 then
+                    -- Found the enemy!
+                    Fluent:Notify({Title = "ARK Quest", Content = "Enemy spotted! Attacking...", Duration = 2})
+                    KillEnemy("Possessed Rider Lv.90")
+                    break
+                end
+            end
+            
+            -- If still not found after checking all positions, just kill normally
+            if not _G.AutoFarm then break end
+            KillEnemy("Possessed Rider Lv.90")
+        end
+    end
+
+end -- ✅ CLOSE the main quest selection
+
+task.wait(1)
+
+task.wait(1) -- ✅ ADD THIS LINE (was missing!)
+
+            end  -- ✅ Close task.spawn function
         end)
     end
-end)
+end)  -- ✅ Close FarmToggle:OnChanged
 
 SaveManager:SetLibrary(Fluent)
 InterfaceManager:SetLibrary(Fluent)
 SaveManager:IgnoreThemeSettings()
 InterfaceManager:SetFolder("FluentScriptHub")
 SaveManager:SetFolder("FluentScriptHub/RiderWorld")
-InterfaceManager:BuildInterfaceSection(Tabs.Settings)
+InterfaceManager:BuildInterfaceSection(Tabs. Settings)
 SaveManager:BuildConfigSection(Tabs.Settings)
 
 Window:SelectTab(1)
-Fluent:Notify({Title = "Script Loaded", Content = "FAIZ STAMINA + DAGUBA FIX", Duration = 5})
+Fluent:Notify({Title = "Script Loaded", Content = "FAIZ STAMINA + DAGUBA FIX + ARK QUEST", Duration = 5})
 SaveManager:LoadAutoloadConfig()
