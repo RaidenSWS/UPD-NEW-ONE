@@ -1,5 +1,5 @@
 -- // RIDER WORLD SCRIPT // --
--- // VERSION: FAIZ BLASTER FAST SPAM FIX // --
+-- // VERSION: HALOOWEEN CHEST // --
 
 print("Script Loading...")
 
@@ -10,7 +10,7 @@ local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.
 -- // 1. WINDOW // --
 local Window = Fluent:CreateWindow({
     Title = "เสี่ยปาล์มขอเงินฟรี",
-    SubTitle = "UPD 12/8/2025",
+    SubTitle = "HALLOWEEN CHEST",
     TabWidth = 160,
     Size = UDim2.fromOffset(580, 460),
     Acrylic = true, 
@@ -1157,20 +1157,22 @@ local function RunZygaLogic()
 end
 
 -- // UI ELEMENTS // --
-local YuiSection = Tabs.Main:AddSection("YUI QUEST")
+local YuiSection = Tabs.Main:AddSection("QUEST")
 
 local QuestDropdown = Tabs.Main:AddDropdown("QuestSelect", {
     Title = "Select Quest",
     Values = {
-        "quest 1-40", 
-        "Mummy (40-80)", 
-        "Auto 40-80", 
-        "Auto Rook&Bishop", 
-        "AGITO (Shoichi)", 
-        "Auto Miner Goon", 
+        "Quest 1-40", 
+        "Mummy", 
+        "Quest 40-80", 
+        "Rook&Bishop", 
+        "AGITO", 
+        "Miner Goon", 
         "DAGUBA (Auto Dungeon)", 
-        "Auto Zyga",
-        "ARK"  -- ✅ ADD THIS LINE
+        "Zyga",
+        "ARK",
+        "Halloween Chest",
+        "ARK + HALLOWEEN CHEST"
     },
     Multi = false,
     Default = 1,
@@ -1261,6 +1263,181 @@ M1Toggle:OnChanged(function() _G.AutoM1 = Options.M1Toggle.Value end)
 local SpeedSlider = Tabs.Main:AddSlider("SpeedSlider", {Title = "Tween Speed", Default = 60, Min = 10, Max = 300, Rounding = 0, Callback = function(Value) _G.TweenSpeed = Value end})
 local DistSlider = Tabs.Main:AddSlider("DistSlider", {Title = "Position Behind", Default = 4, Min = 0, Max = 15, Rounding = 1, Callback = function(Value) _G.AttackDist = Value end})
 
+-- // === PASTE THIS IN THE SHARED FUNCTIONS AREA (ABOVE MAIN LOOP) === //
+
+-- 1. CONFIG
+local CHEST_SCAN_POSITIONS = {
+    CFrame.new(-866.59, 25.52, -288.02),
+    CFrame.new(-1088.06, 2.65, -644.51),
+    CFrame.new(-1403.94, 0.12, 497.61)
+}
+local ARK_NPC_POSITION = CFrame.new(-1403.94, 0.12, 497.61)
+local SPAWN_POSITIONS = {
+    CFrame.new(-866.59, 25.52, -288.02),
+    CFrame.new(-1088.06, 2.65, -644.51),
+    CFrame.new(-1403.94, 0.12, 497.61)
+}
+
+-- 2. CHEST HELPERS
+local function FindHalloweenChest()
+    if Workspace:FindFirstChild("KeyItem") then
+        local Chest = Workspace.KeyItem:FindFirstChild("Halloween Chest")
+        if Chest then return Chest end
+    end
+    return nil
+end
+
+local function ScanForChest()
+    Fluent:Notify({Title = "Halloween", Content = "Scanning...", Duration = 2})
+    
+    for i, ScanPos in ipairs(CHEST_SCAN_POSITIONS) do
+        if not _G.AutoFarm then return nil end
+        
+        local RootPart = GetRootPart()
+        if not RootPart then return nil end
+        
+        -- Check BEFORE moving
+        local Chest = FindHalloweenChest()
+        if Chest then return Chest end
+
+        -- Start Moving
+        local Distance = (ScanPos.Position - RootPart.Position).Magnitude
+        local Time = Distance / _G.TweenSpeed
+        local TweenInfo = TweenInfo.new(Time, Enum.EasingStyle.Linear)
+        local Tween = TweenService:Create(RootPart, TweenInfo, {CFrame = ScanPos})
+        
+        Tween:Play()
+        
+        -- STOP & GO LOGIC: Scan WHILE moving
+        local StartTime = tick()
+        while (tick() - StartTime) < Time do
+            if not _G.AutoFarm then Tween:Cancel(); return nil end
+            if _G.IsTransforming then Tween:Cancel(); while _G.IsTransforming do task.wait(0.1) end return nil end
+
+            -- !!! IF FOUND, STOP TWEEN IMMEDIATELY !!!
+            Chest = FindHalloweenChest()
+            if Chest then
+                local ChestPart = Chest:IsA("BasePart") and Chest or Chest:FindFirstChildWhichIsA("BasePart", true)
+                if ChestPart then
+                    Tween:Cancel() -- STOP HERE
+                    Fluent:Notify({Title = "Found!", Content = "Stopping to collect!", Duration = 2})
+                    return Chest
+                end
+            end
+            
+            task.wait(0.1)
+        end
+    end
+    return nil
+end
+
+local function PressHalloweenChest()
+    local Chest = FindHalloweenChest()
+    if not Chest then return false end
+    local ChestPart = Chest:IsA("BasePart") and Chest or Chest:FindFirstChildWhichIsA("BasePart", true)
+    if not ChestPart then return false end
+    
+    TweenTo(ChestPart.CFrame * CFrame.new(0, 0, 3))
+    task.wait(0.5)
+    
+    local Prompt = Chest:FindFirstChildWhichIsA("ProximityPrompt", true)
+    if Prompt then 
+        Press_E_Virtual(Prompt, 2) 
+        task.wait(2) 
+        return true 
+    end
+    return false
+end
+
+local function OpenCurrencyCrate()
+    pcall(function() game:GetService("ReplicatedStorage").Remote.Function.InventoryFunction:InvokeServer("Currency Crate I") end)
+end
+
+-- 3. MOB HELPERS
+local function AreAllHollowedGoonsDead()
+    for _, mob in pairs(LIVES_FOLDER:GetChildren()) do
+        if mob.Name == "Hollowed Goon Lv.80" then
+            local Humanoid = mob:FindFirstChild("Humanoid")
+            if Humanoid and Humanoid.Health > 0 then return false end
+        end
+    end
+    return true
+end
+
+local function WaitForEnemySpawn()
+    local StartTime = tick()
+    while (tick() - StartTime) < 5 and _G.AutoFarm do
+        if LIVES_FOLDER:FindFirstChild("Hollowed Goon Lv.80") then return true end
+        task.wait(0.3)
+    end
+    return false
+end
+
+local function KillAllHollowedGoons()
+    local MaxLoops = 50
+    local LoopCount = 0
+    while _G.AutoFarm and LoopCount < MaxLoops do
+        LoopCount = LoopCount + 1
+        if AreAllHollowedGoonsDead() then break end
+        
+        local Enemy = nil
+        for _, mob in pairs(LIVES_FOLDER:GetChildren()) do
+            if mob.Name == "Hollowed Goon Lv.80" then
+                local Humanoid = mob:FindFirstChild("Humanoid")
+                if Humanoid and Humanoid.Health > 0 then Enemy = mob; break end
+            end
+        end
+        
+        if Enemy then 
+            KillEnemy("Hollowed Goon Lv.80")
+            task.wait(0.5) 
+        else 
+            task.wait(0.5) 
+        end
+    end
+end
+
+-- 4. ARK HELPERS
+local function GetARKQuestStatus()
+    local success, result = pcall(function()
+        local GUI = LocalPlayer.PlayerGui.Main.QuestAlertFrame.QuestGUI
+        local QuestFrame = GUI:FindFirstChild("Desire Games")
+        if QuestFrame and QuestFrame:FindFirstChild("TextLabel") and QuestFrame.TextLabel.Visible then
+            if string.find(QuestFrame.TextLabel.Text, "Completed") then return "COMPLETED" else return "ACTIVE" end
+        end
+        return "NONE"
+    end)
+    return success and result or "NONE"
+end
+
+local function AcceptARKQuest()
+    TweenTo(ARK_NPC_POSITION); task.wait(1)
+    local ARKNpc = Workspace.NPC:FindFirstChild("ARKReplicator")
+    if ARKNpc then
+        local ARKPart = ARKNpc.PrimaryPart or ARKNpc:FindFirstChild("ARK Replicator") or ARKNpc:FindFirstChildWhichIsA("BasePart")
+        if ARKPart then
+            TweenTo(ARKPart.CFrame * CFrame.new(0, 0, 3)); task.wait(0.5)
+            pcall(function() fireclickdetector(ARKNpc.ClickDetector) end); task.wait(1)
+            pcall(function() DIALOGUE_EVENT:FireServer({Choice = "[ Desire Games ]"}) end); task.wait(0.5)
+            pcall(function() DIALOGUE_EVENT:FireServer({Exit = true}) end); task.wait(1)
+        end
+    end
+end
+
+local function TurnInARKQuest()
+    TweenTo(ARK_NPC_POSITION); task.wait(1)
+    local ARKNpc = Workspace.NPC:FindFirstChild("ARKReplicator")
+    if ARKNpc then
+        local ARKPart = ARKNpc.PrimaryPart or ARKNpc:FindFirstChild("ARK Replicator") or ARKNpc:FindFirstChildWhichIsA("BasePart")
+        if ARKPart then
+            TweenTo(ARKPart.CFrame * CFrame.new(0, 0, 3)); task.wait(0.5)
+            pcall(function() fireclickdetector(ARKNpc.ClickDetector) end); task.wait(1)
+            pcall(function() DIALOGUE_EVENT:FireServer({Choice = "Completed it."}) end); task.wait(0.5)
+            pcall(function() DIALOGUE_EVENT:FireServer({Exit = true}) end); task.wait(1)
+        end
+    end
+end
+
 FarmToggle:OnChanged(function()
     _G.AutoFarm = Options.FarmToggle.Value
     
@@ -1279,7 +1456,7 @@ FarmToggle:OnChanged(function()
                 Fluent:Notify({Title = "Status", Content = "Running Quest: " .. QuestDropdown.Value, Duration = 1}) 
                 while _G.IsTransforming do task.wait(0.5) end
                 
-                if QuestDropdown.Value == "quest 1-40" then
+                if QuestDropdown.Value == "Quest 1-40" then
     if _G.AutoQuest then Farm_Yui_Quest() end
     if not _G.AutoFarm then break end
     KillEnemy("Dragon User Lv.7"); task.wait(ATTACK_SPEED)
@@ -1289,7 +1466,7 @@ FarmToggle:OnChanged(function()
     KillEnemy("Bat User Lv.12")
     if _G.AutoQuest and _G.AutoFarm then WaitForQuestCompletion("Dragon's Alliance") end
 
-elseif QuestDropdown.Value == "Mummy (40-80)" then
+elseif QuestDropdown.Value == "Mummy" then
     local Status = GetWindQuestStatus()
     if Status == "COMPLETED" or Status == "NONE" then
         if _G.AutoQuest then Accept_Wind_Quest() end
@@ -1298,7 +1475,7 @@ elseif QuestDropdown.Value == "Mummy (40-80)" then
         KillEnemy("Mummy Lv.40")
     end
 
-elseif QuestDropdown.Value == "Auto 40-80" then
+elseif QuestDropdown.Value == "Quest 40-80" then
     local Status = GetMalcomQuestStatus()
     if Status == "COMPLETED" or Status == "NONE" then
         if _G.AutoQuest then Accept_Malcom_Quest() end
@@ -1310,7 +1487,7 @@ elseif QuestDropdown.Value == "Auto 40-80" then
         elseif M2 then KillEnemy("Gazelle User Lv.45") end
     end
 
-elseif QuestDropdown.Value == "Auto Rook&Bishop" then
+elseif QuestDropdown.Value == "Rook&Bishop" then
     local Status = GetRookBishopQuestStatus()
     if Status == "COMPLETED" or Status == "NONE" then
         if _G.AutoQuest then Accept_RookBishop_Quest() end
@@ -1322,7 +1499,7 @@ elseif QuestDropdown.Value == "Auto Rook&Bishop" then
         if LIVES_FOLDER:FindFirstChild("Rook Lv.80") then KillEnemy("Rook Lv.80") end
     end
 
-elseif QuestDropdown.Value == "AGITO (Shoichi)" then
+elseif QuestDropdown.Value == "AGITO" then
     local AgitoStatus = Check_Agito_Quest_Active() 
     if _G.AutoQuest then
         if AgitoStatus == "COMPLETED" or AgitoStatus == "NONE" then Farm_Agito_Quest() end
@@ -1337,7 +1514,7 @@ elseif QuestDropdown.Value == "AGITO (Shoichi)" then
         KillEnemy("Agito Lv.90") 
     end
 
-elseif QuestDropdown.Value == "Auto Miner Goon" then
+elseif QuestDropdown.Value == "Miner Goon" then
     if CurrentState == "FARMING" then
         if QuestCount >= MaxQuests then
             CurrentState = "CRAFTING"
@@ -1396,16 +1573,327 @@ elseif QuestDropdown.Value == "DAGUBA (Auto Dungeon)" then
         task.wait(2)
     end
 
-elseif QuestDropdown.Value == "Auto Zyga" then
+elseif QuestDropdown.Value == "Zyga" then
     RunZygaLogic()
+-- ✅ HALLOWEEN CHEST AUTO FARM (IMPROVED)
+elseif QuestDropdown.Value == "Halloween Chest" then
+    -- Define chest scan positions
+    local CHEST_SCAN_POSITIONS = {
+        CFrame.new(-866.59, 25.52, -288.02),
+        CFrame.new(-1088.06, 2.65, -644.51),
+        CFrame.new(-1403.94, 0.12, 497.61)
+    }
+    
+    -- Helper function to find Halloween Chest
+    local function FindHalloweenChest()
+        if Workspace:FindFirstChild("KeyItem") then
+            local Chest = Workspace.KeyItem:FindFirstChild("Halloween Chest")
+            if Chest then
+                return Chest
+            end
+        end
+        return nil
+    end
+    
+    -- Helper function to press chest
+    local function PressHalloweenChest()
+        local Chest = FindHalloweenChest()
+        
+        if not Chest then
+            warn("⚠️ Halloween Chest not found!")
+            return false
+        end
+        
+        -- Get the chest's BasePart
+        local ChestPart = Chest:IsA("BasePart") and Chest or Chest:FindFirstChildWhichIsA("BasePart", true)
+        
+        if not ChestPart then
+            warn("⚠️ Halloween Chest part not found!")
+            return false
+        end
+        
+        -- Tween to chest
+        Fluent:Notify({Title = "Halloween", Content = "Opening chest...", Duration = 2})
+        TweenTo(ChestPart.CFrame * CFrame.new(0, 0, 3))
+        task.wait(0.5)
+        
+        -- Find and press ProximityPrompt
+        local Prompt = Chest:FindFirstChildWhichIsA("ProximityPrompt", true)
+        
+        if Prompt then
+            Press_E_Virtual(Prompt, 2)
+            task.wait(2)
+            return true
+        else
+            warn("⚠️ Halloween Chest ProximityPrompt not found!")
+            return false
+        end
+    end
+    
+    -- ✅ NEW: Helper function to open Currency Crate
+    local function OpenCurrencyCrate()
+        local success, result = pcall(function()
+            local Event = game:GetService("ReplicatedStorage").Remote.Function.InventoryFunction
+            return Event:InvokeServer("Currency Crate I")
+        end)
+        
+        if success then
+            Fluent:Notify({Title = "Halloween", Content = "Opened Currency Crate!", Duration = 2})
+            print("✅ Currency Crate opened successfully")
+            return true
+        else
+            warn("⚠️ Failed to open Currency Crate:", result)
+            return false
+        end
+    end
+    
+    -- ✅ NEW: Improved function to detect if all Hollowed Goons are dead
+    local function AreAllHollowedGoonsDead()
+        -- Check if ANY Hollowed Goon exists in Lives folder
+        for _, mob in pairs(LIVES_FOLDER:GetChildren()) do
+            if mob.Name == "Hollowed Goon Lv.80" then
+                -- Found one, check if it's alive
+                local Humanoid = mob:FindFirstChild("Humanoid")
+                if Humanoid and Humanoid.Health > 0 then
+                    return false -- At least one is still alive
+                end
+            end
+        end
+        
+        -- No alive Hollowed Goons found
+        return true
+    end
+    
+    -- ✅ NEW: Function to wait for enemies to spawn
+    local function WaitForEnemySpawn()
+        Fluent:Notify({Title = "Halloween", Content = "Waiting for enemies to spawn...", Duration = 2})
+        
+        local StartTime = tick()
+        local MaxWaitTime = 5
+        
+        while (tick() - StartTime) < MaxWaitTime and _G.AutoFarm do
+            if LIVES_FOLDER:FindFirstChild("Hollowed Goon Lv.80") then
+                Fluent:Notify({Title = "Halloween", Content = "Enemies spawned!", Duration = 2})
+                return true
+            end
+            task.wait(0.3)
+        end
+        
+        -- No enemies spawned - probably already got reward
+        return false
+    end
+    
+    -- Helper function to scan for chest at both positions
+    local function ScanForChest()
+        Fluent:Notify({Title = "Halloween", Content = "Scanning for chest...", Duration = 2})
+        
+        for i, ScanPos in ipairs(CHEST_SCAN_POSITIONS) do
+            if not _G.AutoFarm then return nil end
+            
+            -- Go to scan position
+            TweenTo(ScanPos)
+            task.wait(1)
+            
+            -- Check if chest is nearby
+            local Chest = FindHalloweenChest()
+            if Chest then
+                local ChestPart = Chest:IsA("BasePart") and Chest or Chest:FindFirstChildWhichIsA("BasePart", true)
+                if ChestPart then
+                    local Distance = (GetRootPart().Position - ChestPart.Position).Magnitude
+                    if Distance < 200 then -- Chest is nearby
+                        Fluent:Notify({Title = "Halloween", Content = "Chest found at position " .. i .. "!", Duration = 2})
+                        return Chest
+                    end
+                end
+            end
+        end
+        
+        return nil
+    end
+    
+    -- ✅ IMPROVED: Kill all Hollowed Goons until none remain
+    local function KillAllHollowedGoons()
+        Fluent:Notify({Title = "Halloween", Content = "Starting combat...", Duration = 2})
+        
+        local MaxLoops = 50 -- Safety limit to prevent infinite loop
+        local LoopCount = 0
+        
+        while _G.AutoFarm and LoopCount < MaxLoops do
+            LoopCount = LoopCount + 1
+            
+            -- Check if all enemies are dead
+            if AreAllHollowedGoonsDead() then
+                Fluent:Notify({Title = "Halloween", Content = "All enemies defeated!", Duration = 3})
+                print("✅ All Hollowed Goons are dead!")
+                break
+            end
+            
+            -- Still have enemies, find and kill one
+            local Enemy = nil
+            
+            -- Find any alive Hollowed Goon
+            for _, mob in pairs(LIVES_FOLDER:GetChildren()) do
+                if mob.Name == "Hollowed Goon Lv.80" then
+                    local Humanoid = mob:FindFirstChild("Humanoid")
+                    if Humanoid and Humanoid.Health > 0 then
+                        Enemy = mob
+                        break
+                    end
+                end
+            end
+            
+            if Enemy then
+                -- Found alive enemy, kill it
+                Fluent:Notify({Title = "Halloween", Content = "Enemy detected! Attacking...", Duration = 1})
+                KillEnemy("Hollowed Goon Lv.80")
+                task.wait(0.5) -- Brief wait before checking again
+            else
+                -- No enemy found but function says they're not all dead?
+                -- Wait a moment and check again
+                task.wait(0.5)
+            end
+        end
+        
+        if LoopCount >= MaxLoops then
+            warn("⚠️ Kill loop reached safety limit!")
+        end
+        
+        task.wait(1)
+    end
+    
+    -- Main Halloween Chest Loop
+    if not _G.AutoFarm then break end
+    
+    -- Step 1: Scan for chest at both positions
+    local FoundChest = ScanForChest()
+    
+    if not FoundChest then
+        -- Chest not found at either position, try direct approach
+        Fluent:Notify({Title = "Halloween", Content = "Chest not found, trying direct...", Duration = 2})
+        FoundChest = FindHalloweenChest()
+    end
+    
+    if not FoundChest then
+        warn("⚠️ Halloween Chest not found anywhere!")
+        Fluent:Notify({Title = "Error", Content = "Halloween Chest not found!", Duration = 5})
+        task.wait(5)
+    else
+        -- Step 2: Press the chest
+        local ChestPressed = PressHalloweenChest()
+        
+        if ChestPressed then
+            -- Step 3: Wait for enemies to spawn (or detect already got reward)
+            local EnemiesSpawned = WaitForEnemySpawn()
+            
+            if not EnemiesSpawned then
+                -- No enemies spawned = already got reward
+                Fluent:Notify({Title = "Halloween", Content = "Already received reward today!", Duration = 3})
+                
+                -- ✅ Open Currency Crate anyway
+                task.wait(1)
+                OpenCurrencyCrate()
+                
+                task.wait(10)
+            else
+                -- Step 4: Kill all spawned Hollowed Goons
+                task.wait(1) -- Brief wait for all enemies to spawn
+                KillAllHollowedGoons()
+                
+                -- Step 5: Verify all are dead before proceeding
+                if not AreAllHollowedGoonsDead() then
+                    warn("⚠️ Warning: Some enemies may still be alive!")
+                    task.wait(3) -- Extra wait
+                end
+                
+                -- Step 6: Return to chest and press again to collect reward
+                if not _G.AutoFarm then break end
+                
+                Fluent:Notify({Title = "Halloween", Content = "Returning to chest for reward...", Duration = 2})
+                
+                local FinalChest = FindHalloweenChest()
+                if FinalChest then
+                    PressHalloweenChest()
+                    task.wait(2)
+                    
+                    -- ✅ Open Currency Crate after collecting reward
+                    OpenCurrencyCrate()
+                    
+                    Fluent:Notify({Title = "Halloween", Content = "Cycle complete! Restarting...", Duration = 3})
+                    task.wait(3)
+                else
+                    warn("⚠️ Could not find chest after killing enemies!")
+                    task.wait(5)
+                end
+            end
+        end
+    end
 
--- ✅ IMPROVED ARK QUEST WITH FULL LOGIC
+elseif QuestDropdown.Value == "ARK + HALLOWEEN CHEST" then
+                    -- 1. CHECK ARK QUEST
+                    local ArkStatus = GetARKQuestStatus()
+                    
+                    if ArkStatus == "NONE" then 
+                        AcceptARKQuest() 
+                        
+                    elseif ArkStatus == "ACTIVE" then
+                        -- Hunt ARK Boss
+                        local Enemy = LIVES_FOLDER:FindFirstChild("Possessed Rider Lv.90")
+                        if Enemy and Enemy:FindFirstChild("Humanoid") and Enemy.Humanoid.Health > 0 then 
+                            Fluent:Notify({Title = "ARK", Content = "Fighting Boss...", Duration = 2})
+                            KillEnemy("Possessed Rider Lv.90")
+                        else
+                            -- If not found, scan positions
+                            Fluent:Notify({Title = "ARK", Content = "Scanning...", Duration = 1})
+                            for _, pos in ipairs(SPAWN_POSITIONS) do
+                                if not _G.AutoFarm then break end
+                                TweenTo(pos); task.wait(1)
+                                local E = LIVES_FOLDER:FindFirstChild("Possessed Rider Lv.90")
+                                if E and E:FindFirstChild("Humanoid") and E.Humanoid.Health > 0 then 
+                                    KillEnemy("Possessed Rider Lv.90")
+                                    break 
+                                end
+                            end
+                        end
+                        
+                    elseif ArkStatus == "COMPLETED" then 
+                        -- 2. TURN IN ARK QUEST
+                        TurnInARKQuest()
+                        
+                        -- 3. GO TO HALLOWEEN CHEST (Immediately after turn in)
+                        if _G.AutoFarm then
+                            Fluent:Notify({Title = "Switch", Content = "Chest Time...", Duration = 3})
+                            task.wait(1)
+                            
+                            local Chest = ScanForChest() -- This now stops immediately if found
+                            if not Chest then Chest = FindHalloweenChest() end
+                            
+                            if Chest then
+                                local Opened = PressHalloweenChest()
+                                if Opened then
+                                    local EnemiesSpawned = WaitForEnemySpawn()
+                                    if EnemiesSpawned then 
+                                        KillAllHollowedGoons()
+                                        task.wait(1)
+                                        PressHalloweenChest() -- Get Reward
+                                        OpenCurrencyCrate()
+                                    else 
+                                        OpenCurrencyCrate() -- Assume already done
+                                    end
+                                end
+                            else 
+                                Fluent:Notify({Title = "Skip", Content = "Chest not found!", Duration = 2}) 
+                            end
+                        end
+                    end
+
+-- ✅ IMPROVED ARK QUEST WITH FULL LOGIC (keep this as is)
 elseif QuestDropdown.Value == "ARK" then
     -- Define positions
     local ARK_NPC_POSITION = CFrame.new(-1403.94, 0.12, 497.61)
     local SPAWN_POSITIONS = {
         CFrame.new(-866.59, 25.52, -288.02),
-        CFrame.new(-1088.06, 2.65, -644.51)
+        CFrame.new(-1088.06, 2.65, -644.51),
+        CFrame.new(-1403.94, 0.12, 497.61)
     }
     
     -- Helper function to check quest status
@@ -1583,5 +2071,5 @@ InterfaceManager:BuildInterfaceSection(Tabs. Settings)
 SaveManager:BuildConfigSection(Tabs.Settings)
 
 Window:SelectTab(1)
-Fluent:Notify({Title = "Script Loaded", Content = "FAIZ STAMINA + DAGUBA FIX + ARK QUEST", Duration = 5})
+Fluent:Notify({Title = "Script Loaded", Content = "ARK + HALLOWEEN CHEST", Duration = 5})
 SaveManager:LoadAutoloadConfig()
