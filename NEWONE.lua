@@ -1,5 +1,5 @@
 -- // RIDER WORLD SCRIPT // --
--- // VERSION: UPDATE AUTO MINER GOON RESET // --
+-- // VERSION: FAIZ BLASTER FAST SPAM FIX // --
 
 print("Script Loading...")
 
@@ -10,7 +10,7 @@ local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.
 -- // 1. WINDOW // --
 local Window = Fluent:CreateWindow({
     Title = "เสี่ยปาล์มขอเงินฟรี",
-    SubTitle = "MINER GOON FIX",
+    SubTitle = "UPD 12/8/2025",
     TabWidth = 160,
     Size = UDim2.fromOffset(580, 460),
     Acrylic = true, 
@@ -1161,7 +1161,17 @@ local YuiSection = Tabs.Main:AddSection("YUI QUEST")
 
 local QuestDropdown = Tabs.Main:AddDropdown("QuestSelect", {
     Title = "Select Quest",
-    Values = {"quest 1-40", "Mummy (40-80)", "Auto 40-80", "Auto Rook&Bishop", "AGITO (Shoichi)", "Auto Miner Goon", "DAGUBA (Auto Dungeon)", "Auto Zyga"},
+    Values = {
+        "quest 1-40", 
+        "Mummy (40-80)", 
+        "Auto 40-80", 
+        "Auto Rook&Bishop", 
+        "AGITO (Shoichi)", 
+        "Auto Miner Goon", 
+        "DAGUBA (Auto Dungeon)", 
+        "Auto Zyga",
+        "ARK"  -- ✅ ADD THIS LINE
+    },
     Multi = false,
     Default = 1,
 })
@@ -1207,7 +1217,7 @@ end)
 
 local PreparationSection = Tabs.Main:AddSection("PREPARATION")
 local ToggleHenshin = Tabs.Main:AddToggle("AutoHenshin", {Title = "Auto Henshin (H)", Default = true })
-ToggleHenshin:OnChanged(function() _G.AutoHenshin = Options.AutoHenshin.Value end)
+ToggleHenshin:OnChanged(function() _G.AutoHenshin = Options.AutoHenshin. Value end)
 local ToggleEquip = Tabs.Main:AddToggle("AutoEquip", {Title = "Auto Equip Weapon", Default = true })
 ToggleEquip:OnChanged(function() _G.AutoEquip = Options.AutoEquip.Value end)
 
@@ -1270,136 +1280,185 @@ FarmToggle:OnChanged(function()
                 while _G.IsTransforming do task.wait(0.5) end
                 
                 if QuestDropdown.Value == "quest 1-40" then
-                    if _G.AutoQuest then Farm_Yui_Quest() end
-                    if not _G.AutoFarm then break end
-                    KillEnemy("Dragon User Lv.7"); task.wait(ATTACK_SPEED)
-                    if not _G.AutoFarm then break end
-                    KillEnemy("Crab User Lv.10"); task.wait(ATTACK_SPEED)
-                    if not _G.AutoFarm then break end
-                    KillEnemy("Bat User Lv.12")
-                    if _G.AutoQuest and _G.AutoFarm then WaitForQuestCompletion("Dragon's Alliance") end
-                
-                elseif QuestDropdown.Value == "Mummy (40-80)" then
-                    local Status = GetWindQuestStatus()
-                    if Status == "COMPLETED" or Status == "NONE" then
-                        if _G.AutoQuest then Accept_Wind_Quest() end
-                    elseif Status == "ACTIVE" then
-                        if not _G.AutoFarm then break end
-                        KillEnemy("Mummy Lv.40")
-                    end
-                
-                elseif QuestDropdown.Value == "Auto 40-80" then
-                    local Status = GetMalcomQuestStatus()
-                    if Status == "COMPLETED" or Status == "NONE" then
-                        if _G.AutoQuest then Accept_Malcom_Quest() end
-                    elseif Status == "ACTIVE" then
-                        if not _G.AutoFarm then break end
-                        local M1 = LIVES_FOLDER:FindFirstChild("Dark Dragon User Lv.40")
-                        local M2 = LIVES_FOLDER:FindFirstChild("Gazelle User Lv.45")
-                        if M1 then KillEnemy("Dark Dragon User Lv.40")
-                        elseif M2 then KillEnemy("Gazelle User Lv.45") end
-                    end
-                
-                elseif QuestDropdown.Value == "Auto Rook&Bishop" then
-                    local Status = GetRookBishopQuestStatus()
-                    if Status == "COMPLETED" or Status == "NONE" then
-                        if _G.AutoQuest then Accept_RookBishop_Quest() end
-                    elseif Status == "ACTIVE" then
-                        if not _G.AutoFarm then break end
-                        Summon_RookBishop()
-                        if not _G.AutoFarm then break end
-                        if LIVES_FOLDER:FindFirstChild("Bishop Lv.80") then KillEnemy("Bishop Lv.80") end
-                        if LIVES_FOLDER:FindFirstChild("Rook Lv.80") then KillEnemy("Rook Lv.80") end
-                    end
-                
-                 elseif QuestDropdown.Value == "AGITO (Shoichi)" then
-                    local AgitoStatus = Check_Agito_Quest_Active() 
-                    if _G.AutoQuest then
-                        if AgitoStatus == "COMPLETED" or AgitoStatus == "NONE" then Farm_Agito_Quest() end
-                        if Check_Agito_Quest_Active() == "ACTIVE" then
-                            if not _G.AutoFarm then break end
-                            Summon_Agito(); if not _G.AutoFarm then break end
-                            KillEnemy("Agito Lv.90") 
-                            if _G.AutoQuest and _G.AutoFarm then WaitForQuestCompletion("Agito") end
-                        end
-                    else
-                         if not _G.AutoFarm then break end
-                         KillEnemy("Agito Lv.90") 
-                    end
-                elseif QuestDropdown.Value == "Auto Miner Goon" then
-                     if CurrentState == "FARMING" then
-                        if QuestCount >= MaxQuests then
-                            CurrentState = "CRAFTING"
-                            RunCraftingRoutine()
-                        else
-                            if not WarpedToMine then
-                                Fluent:Notify({Title = "Status", Content = "Starting... Warping to Mine first!", Duration = 3})
-                                for i=1,5 do WarpTo("Mine's Field"); task.wait(0.2) end
-                                task.wait(3); WarpedToMine = true
-                            end
-                            if _G.AutoQuest then
-                                local Status = GetMinerGoonQuestStatus()
-                                if Status == "COMPLETED" or Status == "NONE" then Accept_MinerGoon_Quest()
-                                elseif Status == "ACTIVE" then
-                                    if not _G.AutoFarm then break end
-                                    KillEnemy("Miner Goon Lv.50")
-                                end
-                            else KillEnemy("Miner Goon Lv.50") end
-                        end
-                    elseif CurrentState == "CRAFTING" then end
-                
-                -- // DAGUBA FIX // --
-                elseif QuestDropdown.Value == "DAGUBA (Auto Dungeon)" then
-                     local Status = GetDagubaQuestStatus()
-                    
-                    if Status == "COMPLETED" then
-                        CancelMovement()
-                        Fluent:Notify({Title = "Daguba", Content = "Quest Completed! Waiting 20s...", Duration = 5})
-                        for i = 1, 20 do if not _G.AutoFarm then break end task.wait(1) end
-                        if _G.AutoFarm then Accept_Daguba_Quest() end
-                        
-                    elseif IsInAncientDungeon() then
-                        Run_Daguba_Sequence() -- Already inside, clear room
-                        task.wait(2)
-                        
-                    elseif Status == "NONE" then
-                        Accept_Daguba_Quest()
-                        
-                    elseif Status == "ACTIVE" then
-                        if not IsEnteringDungeon then
-                            IsEnteringDungeon = true
-                            -- FORCE ENTRY (Removed notification check)
-                            RIDER_TRIAL_EVENT:FireServer("Trial of Ancient") 
-                            
-                            local T = 0
-                            repeat 
-                                task.wait(1)
-                                T = T + 1
-                            until IsInAncientDungeon() or T > 10 or not _G.AutoFarm
-                            
-                            IsEnteringDungeon = false
-                        end
-                        task.wait(2)
-                    end
-                
-                elseif QuestDropdown.Value == "Auto Zyga" then
-                     RunZygaLogic()
-                end
-                
-                task.wait(1)
+    if _G.AutoQuest then Farm_Yui_Quest() end
+    if not _G.AutoFarm then break end
+    KillEnemy("Dragon User Lv.7"); task.wait(ATTACK_SPEED)
+    if not _G.AutoFarm then break end
+    KillEnemy("Crab User Lv.10"); task.wait(ATTACK_SPEED)
+    if not _G.AutoFarm then break end
+    KillEnemy("Bat User Lv.12")
+    if _G.AutoQuest and _G.AutoFarm then WaitForQuestCompletion("Dragon's Alliance") end
+
+elseif QuestDropdown.Value == "Mummy (40-80)" then
+    local Status = GetWindQuestStatus()
+    if Status == "COMPLETED" or Status == "NONE" then
+        if _G.AutoQuest then Accept_Wind_Quest() end
+    elseif Status == "ACTIVE" then
+        if not _G.AutoFarm then break end
+        KillEnemy("Mummy Lv.40")
+    end
+
+elseif QuestDropdown.Value == "Auto 40-80" then
+    local Status = GetMalcomQuestStatus()
+    if Status == "COMPLETED" or Status == "NONE" then
+        if _G.AutoQuest then Accept_Malcom_Quest() end
+    elseif Status == "ACTIVE" then
+        if not _G.AutoFarm then break end
+        local M1 = LIVES_FOLDER:FindFirstChild("Dark Dragon User Lv.40")
+        local M2 = LIVES_FOLDER:FindFirstChild("Gazelle User Lv.45")
+        if M1 then KillEnemy("Dark Dragon User Lv.40")
+        elseif M2 then KillEnemy("Gazelle User Lv.45") end
+    end
+
+elseif QuestDropdown.Value == "Auto Rook&Bishop" then
+    local Status = GetRookBishopQuestStatus()
+    if Status == "COMPLETED" or Status == "NONE" then
+        if _G.AutoQuest then Accept_RookBishop_Quest() end
+    elseif Status == "ACTIVE" then
+        if not _G.AutoFarm then break end
+        Summon_RookBishop()
+        if not _G.AutoFarm then break end
+        if LIVES_FOLDER:FindFirstChild("Bishop Lv.80") then KillEnemy("Bishop Lv.80") end
+        if LIVES_FOLDER:FindFirstChild("Rook Lv.80") then KillEnemy("Rook Lv.80") end
+    end
+
+elseif QuestDropdown.Value == "AGITO (Shoichi)" then
+    local AgitoStatus = Check_Agito_Quest_Active() 
+    if _G.AutoQuest then
+        if AgitoStatus == "COMPLETED" or AgitoStatus == "NONE" then Farm_Agito_Quest() end
+        if Check_Agito_Quest_Active() == "ACTIVE" then
+            if not _G.AutoFarm then break end
+            Summon_Agito(); if not _G.AutoFarm then break end
+            KillEnemy("Agito Lv.90") 
+            if _G.AutoQuest and _G.AutoFarm then WaitForQuestCompletion("Agito") end
+        end
+    else
+        if not _G.AutoFarm then break end
+        KillEnemy("Agito Lv.90") 
+    end
+
+elseif QuestDropdown.Value == "Auto Miner Goon" then
+    if CurrentState == "FARMING" then
+        if QuestCount >= MaxQuests then
+            CurrentState = "CRAFTING"
+            RunCraftingRoutine()
+        else
+            if not WarpedToMine then
+                Fluent:Notify({Title = "Status", Content = "Starting... Warping to Mine first!", Duration = 3})
+                for i=1,5 do WarpTo("Mine's Field"); task.wait(0.2) end
+                task.wait(3); WarpedToMine = true
             end
+            if _G.AutoQuest then
+                local Status = GetMinerGoonQuestStatus()
+                if Status == "COMPLETED" or Status == "NONE" then 
+                    Accept_MinerGoon_Quest()
+                elseif Status == "ACTIVE" then
+                    if not _G.AutoFarm then break end
+                    KillEnemy("Miner Goon Lv.50")
+                end
+            else 
+                KillEnemy("Miner Goon Lv.50") 
+            end
+        end
+    elseif CurrentState == "CRAFTING" then
+        -- Crafting in progress
+    end
+
+elseif QuestDropdown.Value == "DAGUBA (Auto Dungeon)" then
+    local Status = GetDagubaQuestStatus()
+    
+    if Status == "COMPLETED" then
+        CancelMovement()
+        Fluent:Notify({Title = "Daguba", Content = "Quest Completed! Waiting 20s...", Duration = 5})
+        for i = 1, 20 do if not _G.AutoFarm then break end task.wait(1) end
+        if _G.AutoFarm then Accept_Daguba_Quest() end
+        
+    elseif IsInAncientDungeon() then
+        Run_Daguba_Sequence()
+        task.wait(2)
+        
+    elseif Status == "NONE" then
+        Accept_Daguba_Quest()
+        
+    elseif Status == "ACTIVE" then
+        if not IsEnteringDungeon then
+            IsEnteringDungeon = true
+            RIDER_TRIAL_EVENT:FireServer("Trial of Ancient") 
+            
+            local T = 0
+            repeat 
+                task.wait(1)
+                T = T + 1
+            until IsInAncientDungeon() or T > 10 or not _G.AutoFarm
+            
+            IsEnteringDungeon = false
+        end
+        task.wait(2)
+    end
+
+elseif QuestDropdown.Value == "Auto Zyga" then
+    RunZygaLogic()
+
+-- ✅ ARK QUEST
+elseif QuestDropdown.Value == "ARK" then
+    local ARKNpc = Workspace.NPC:FindFirstChild("ARKReplicator")
+    if ARKNpc then
+        -- Find the correct part to tween to
+        local ARKPart = ARKNpc.PrimaryPart or ARKNpc:FindFirstChild("ARK Replicator") or ARKNpc:FindFirstChildWhichIsA("BasePart")
+        
+        if ARKPart then
+            TweenTo(ARKPart.CFrame * CFrame.new(0, 0, 3))
+            task.wait(0.5)
+            
+            -- Click NPC
+            pcall(function()
+                fireclickdetector(ARKNpc.ClickDetector)
+            end)
+            task.wait(1)
+            
+            -- Send dialogue choices
+            pcall(function()
+                DIALOGUE_EVENT:FireServer({Choice = "[ Desire Games ]"})
+            end)
+            task.wait(0.5)
+            
+            pcall(function()
+                DIALOGUE_EVENT:FireServer({Choice = "Completed it."})
+            end)
+            task.wait(0.5)
+            
+            pcall(function()
+                DIALOGUE_EVENT:FireServer({Exit = true})
+            end)
+            task.wait(0.5)
+        else
+            warn("⚠️ ARKReplicator part not found!")
+        end
+    else
+        warn("⚠️ ARKReplicator NPC not found!")
+    end
+    
+    -- Kill the enemy
+    if not _G.AutoFarm then break end
+    KillEnemy("Possessed Rider Lv.90")
+
+end -- ✅ CLOSE the main quest selection
+
+task.wait(1) -- ✅ ADD THIS LINE (was missing!)
+
+            end  -- ✅ Close task.spawn function
         end)
     end
-end)
+end)  -- ✅ Close FarmToggle:OnChanged
 
 SaveManager:SetLibrary(Fluent)
 InterfaceManager:SetLibrary(Fluent)
 SaveManager:IgnoreThemeSettings()
 InterfaceManager:SetFolder("FluentScriptHub")
 SaveManager:SetFolder("FluentScriptHub/RiderWorld")
-InterfaceManager:BuildInterfaceSection(Tabs.Settings)
+InterfaceManager:BuildInterfaceSection(Tabs. Settings)
 SaveManager:BuildConfigSection(Tabs.Settings)
 
 Window:SelectTab(1)
-Fluent:Notify({Title = "Script Loaded", Content = "FAIZ STAMINA + DAGUBA FIX", Duration = 5})
+Fluent:Notify({Title = "Script Loaded", Content = "FAIZ STAMINA + DAGUBA FIX + ARK QUEST", Duration = 5})
 SaveManager:LoadAutoloadConfig()
