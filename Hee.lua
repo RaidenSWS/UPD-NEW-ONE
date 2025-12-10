@@ -10,7 +10,7 @@ local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.
 -- // 1. WINDOW // --
 local Window = Fluent:CreateWindow({
     Title = "เสี่ยปาล์มขอเงินฟรี",
-    SubTitle = "HALLOWEEN CHEST + Open Progrise",
+    SubTitle = "HALLOWEEN CHEST + Open Progrise x2",
     TabWidth = 160,
     Size = UDim2.fromOffset(580, 460),
     Acrylic = true, 
@@ -1829,9 +1829,20 @@ elseif QuestDropdown.Value == "Halloween Chest" then
     end
 
 elseif QuestDropdown.Value == "ARK + HALLOWEEN CHEST" then
-                    -- 1. CHECK ARK QUEST
+                    -- // 1. CHECK ARK QUEST // --
                     local ArkStatus = GetARKQuestStatus()
                     
+                    -- Local helper to open cache multiple times
+                    local function OpenProgrise(times)
+                        for i = 1, times do
+                            pcall(function() 
+                                game:GetService("ReplicatedStorage").Remote.Function.InventoryFunction:InvokeServer("Progrise Cache")
+                            end)
+                            task.wait(0.2)
+                        end
+                        Fluent:Notify({Title = "Cache", Content = "Opened Progrise Cache x" .. times, Duration = 2})
+                    end
+
                     if ArkStatus == "NONE" then 
                         AcceptARKQuest() 
                         
@@ -1839,62 +1850,71 @@ elseif QuestDropdown.Value == "ARK + HALLOWEEN CHEST" then
                         -- Hunt ARK Boss
                         local Enemy = LIVES_FOLDER:FindFirstChild("Possessed Rider Lv.90")
                         
-                        -- Helper to open cache after kill
-                        local function OpenProgrise()
-                            Fluent:Notify({Title = "ARK", Content = "Opening Progrise Cache...", Duration = 2})
-                            pcall(function() 
-                                game:GetService("ReplicatedStorage").Remote.Function.InventoryFunction:InvokeServer("Progrise Cache")
-                            end)
-                        end
-
+                        -- If Boss found, Kill it
                         if Enemy and Enemy:FindFirstChild("Humanoid") and Enemy.Humanoid.Health > 0 then 
-                            Fluent:Notify({Title = "ARK", Content = "Fighting Boss...", Duration = 2})
+                            Fluent:Notify({Title = "ARK", Content = "Fighting Possessed Rider...", Duration = 2})
                             KillEnemy("Possessed Rider Lv.90")
-                            -- OPEN CACHE AFTER KILL
-                            OpenProgrise()
+                            
+                            -- OPEN CACHE 2x AFTER KILL
+                            OpenProgrise(2)
                         else
-                            -- If not found, scan positions
-                            Fluent:Notify({Title = "ARK", Content = "Scanning...", Duration = 1})
+                            -- If not found, Scan spawn locations
+                            Fluent:Notify({Title = "ARK", Content = "Scanning for Boss...", Duration = 1})
                             for _, pos in ipairs(SPAWN_POSITIONS) do
                                 if not _G.AutoFarm then break end
                                 TweenTo(pos); task.wait(1)
                                 local E = LIVES_FOLDER:FindFirstChild("Possessed Rider Lv.90")
                                 if E and E:FindFirstChild("Humanoid") and E.Humanoid.Health > 0 then 
                                     KillEnemy("Possessed Rider Lv.90")
-                                    -- OPEN CACHE AFTER KILL
-                                    OpenProgrise()
+                                    
+                                    -- OPEN CACHE 2x AFTER KILL
+                                    OpenProgrise(2)
                                     break 
                                 end
                             end
                         end
                         
                     elseif ArkStatus == "COMPLETED" then 
-                        -- 2. TURN IN ARK QUEST
+                        -- Turn in Quest
                         TurnInARKQuest()
                         
-                        -- 3. GO TO HALLOWEEN CHEST (Immediately after turn in)
+                        -- OPEN CACHE 2x AFTER TURN IN
+                        OpenProgrise(2)
+                        
+                        -- // 2. SWITCH TO HALLOWEEN CHEST // --
                         if _G.AutoFarm then
-                            Fluent:Notify({Title = "Switch", Content = "Chest Time...", Duration = 3})
+                            Fluent:Notify({Title = "Switch", Content = "Going to Halloween Chest...", Duration = 3})
                             task.wait(1)
                             
-                            local Chest = ScanForChest() -- This now stops immediately if found
+                            -- Find Chest
+                            local Chest = ScanForChest()
                             if not Chest then Chest = FindHalloweenChest() end
                             
                             if Chest then
+                                -- 1. Press Chest to Summon Mobs
                                 local Opened = PressHalloweenChest()
+                                
                                 if Opened then
+                                    -- 2. Wait for Mobs & Kill
                                     local EnemiesSpawned = WaitForEnemySpawn()
-                                    if EnemiesSpawned then 
+                                    if EnemiesSpawned then
                                         KillAllHollowedGoons()
                                         task.wait(1)
-                                        PressHalloweenChest() -- Get Reward
+                                        
+                                        -- 3. Press Chest again for Reward
+                                        PressHalloweenChest()
+                                        
+                                        -- 4. Open Currency Crate
                                         OpenCurrencyCrate()
-                                    else 
-                                        OpenCurrencyCrate() -- Assume already done
+                                        
+                                        Fluent:Notify({Title = "Cycle Complete", Content = "Restarting loop...", Duration = 3})
+                                    else
+                                        -- If no enemies spawned, try opening crate anyway (maybe lag)
+                                        OpenCurrencyCrate()
                                     end
                                 end
-                            else 
-                                Fluent:Notify({Title = "Skip", Content = "Chest not found!", Duration = 2}) 
+                            else
+                                Fluent:Notify({Title = "Skip", Content = "Halloween Chest not found!", Duration = 2})
                             end
                         end
                     end
