@@ -10,7 +10,7 @@ local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.
 -- // 1. WINDOW // --
 local Window = Fluent:CreateWindow({
     Title = "เสี่ยปาล์มขอเงินฟรี",
-    SubTitle = "HALLOWEEN CHEST + Open Progrise x2",
+    SubTitle = "Exchange Miner",
     TabWidth = 160,
     Size = UDim2.fromOffset(580, 460),
     Acrylic = true, 
@@ -103,6 +103,8 @@ local QuestCount = 0
 local MaxQuests = 5
 local WarpedToMine = false
 local CraftStatusSignal = "IDLE" 
+local ExchangeCount = 0  -- ✅ ADD THIS
+local MaxExchanges = 3   -- ✅ ADD THIS
 
 -- LOGIC FLAGS
 local HenshinDone = false 
@@ -851,9 +853,122 @@ local function CloseCraftingGUI()
         end)
     end
 end
+-- ✅ NEW: Exchange Ore Function
+local function ExchangeOreWithLei()
+    Fluent:Notify({Title = "Exchange", Content = "Going to Lei for exchange...", Duration = 3})
+    
+    -- Find Lei NPC
+    local NPC = Workspace.NPC:FindFirstChild("LeeTheMiner")
+    if not NPC then
+        warn("⚠️ LeeTheMiner NPC not found!")
+        Fluent:Notify({Title = "Error", Content = "Lei NPC not found", Duration = 5})
+        return false
+    end
+    
+    -- Tween to NPC
+    local NPCRoot = NPC:FindFirstChild("HumanoidRootPart")
+    if NPCRoot then
+        TweenTo(NPCRoot.CFrame * CFrame.new(0, 0, 3))
+        task.wait(0.5)
+    end
+    
+    -- Click NPC
+    pcall(function()
+        fireclickdetector(NPC.ClickDetector)
+    end)
+    task.wait(1)
+    
+    -- Send Exchange dialogue
+    local success1 = pcall(function()
+        DIALOGUE_EVENT:FireServer({Choice = "[ Exchange ]"})
+    end)
+    
+    if not success1 then
+        warn("⚠️ Failed to select Exchange option")
+        return false
+    end
+    
+    task.wait(0.5)
+    
+    -- Confirm exchange
+    local success2 = pcall(function()
+        DIALOGUE_EVENT:FireServer({Choice = "[ Confirm ]"})
+    end)
+    
+    if not success2 then
+        warn("⚠️ Failed to confirm exchange")
+        return false
+    end
+    
+    task.wait(0.5)
+    
+    -- Close dialogue
+    pcall(function()
+        DIALOGUE_EVENT:FireServer({Exit = true})
+    end)
+    
+    task.wait(1)
+    
+    Fluent:Notify({Title = "Exchange", Content = "Exchange completed!", Duration = 2})
+    print("✅ Exchange successful - Got Blue & Red Fragments")
+    
+    return true
+end
+
+-- ✅ NEW: Run Exchange Loop (3 times)
+local function RunExchangeLoop()
+    Fluent:Notify({Title = "Exchange Loop", Content = "Starting 3x exchange cycle...", Duration = 3})
+    
+    local ExchangeCount = 0
+    local MaxExchanges = 3
+    
+    for i = 1, MaxExchanges do
+        if not _G.AutoFarm then break end
+        
+        Fluent:Notify({Title = "Exchange", Content = "Exchange " .. i .. "/3", Duration = 2})
+        
+        -- Reset quest count for this cycle
+        QuestCount = 0
+        
+        -- Do 5 quests
+        while QuestCount < 5 and _G.AutoFarm do
+            local Status = GetMinerGoonQuestStatus()
+            
+            if Status == "COMPLETED" or Status == "NONE" then
+                Accept_MinerGoon_Quest()
+            elseif Status == "ACTIVE" then
+                if not _G.AutoFarm then break end
+                KillEnemy("Miner Goon Lv.50")
+            end
+            
+            task.wait(1)
+        end
+        
+        -- After 5 quests, do exchange
+        if QuestCount >= 5 then
+            local ExchangeSuccess = ExchangeOreWithLei()
+            
+            if ExchangeSuccess then
+                ExchangeCount = ExchangeCount + 1
+                Fluent:Notify({Title = "Progress", Content = "Exchanges: " .. ExchangeCount .. "/3", Duration = 3})
+            else
+                warn("⚠️ Exchange failed, retrying...")
+                task.wait(3)
+                ExchangeOreWithLei() -- Retry once
+            end
+        end
+        
+        task.wait(2)
+    end
+    
+    Fluent:Notify({Title = "Exchange Loop", Content = "All 3 exchanges complete!", Duration = 3})
+    print("✅ Completed " .. ExchangeCount .. " exchanges")
+    
+    return ExchangeCount >= 3
+end
 local function RunCraftingRoutine()
     WarpTo("Rider's Center")
-    Fluent:Notify({Title = "Crafting", Content = "Warping.. .", Duration = 3})
+    Fluent:Notify({Title = "Crafting", Content = "Warping...", Duration = 3})
     task.wait(6)
     
     local NPC = Workspace.NPC:FindFirstChild("UniversalCrafting")
@@ -863,33 +978,30 @@ local function RunCraftingRoutine()
         return
     end
     
-    -- ✅ FIX: Add more safety checks
     local NPCRoot = NPC:FindFirstChild("HumanoidRootPart")
     if not NPCRoot then
         warn("⚠️ NPC HumanoidRootPart not found!")
         return
     end
     
-    TweenTo(NPCRoot. CFrame * CFrame.new(0,0,3))
+    TweenTo(NPCRoot.CFrame * CFrame.new(0, 0, 3))
     task.wait(0.5)
     
-    -- ✅ FIX: Safely fire click detector
     pcall(function()
-        fireclickdetector(NPC. ClickDetector)
+        fireclickdetector(NPC.ClickDetector)
     end)
     task.wait(1)
     
-    -- ✅ FIX: Safely send dialogue
     pcall(function()
         DIALOGUE_EVENT:FireServer({Choice = "[ Craft ]"})
     end)
     task.wait(1)
     
     CraftStatusSignal = "IDLE"
-    local Con = CRAFTING_EVENT. OnClientEvent:Connect(function(Data)
-        if type(Data) == "table" and Data. Callback then
+    local Con = CRAFTING_EVENT.OnClientEvent:Connect(function(Data)
+        if type(Data) == "table" and Data.Callback then
             local msg = string.lower(Data.Callback)
-            if string.find(msg, "limit") or string. find(msg, "max") then 
+            if string.find(msg, "limit") or string.find(msg, "max") then 
                 CraftStatusSignal = "MAX"
             elseif string.find(msg, "not enough") then 
                 CraftStatusSignal = "EMPTY"
@@ -898,18 +1010,22 @@ local function RunCraftingRoutine()
     end)
     
     local Start = tick()
-    local Items = {"Blue Fragment", "Red Fragment", "Blue Sappyre", "Red Emperor"}
+    -- ✅ CHANGED: Only craft Blue Sappyre and Red Emperor
+    local Items = {"Blue Sappyre", "Red Emperor"}
     local Stop = false
+    
+    Fluent:Notify({Title = "Crafting", Content = "Crafting Blue Sappyre & Red Emperor only", Duration = 3})
     
     for _, Item in ipairs(Items) do
         if not _G.AutoFarm or Stop then break end
         local Active = true
         local Att = 0
         
+        Fluent:Notify({Title = "Crafting", Content = "Now crafting: " .. Item, Duration = 2})
+        
         while _G.AutoFarm and Active do
             CraftStatusSignal = "IDLE"
             
-            -- ✅ FIX: Wrap in pcall
             pcall(function()
                 CRAFTING_EVENT:FireServer("Special", Item)
             end)
@@ -918,8 +1034,10 @@ local function RunCraftingRoutine()
             Att = Att + 1
             
             if CraftStatusSignal == "MAX" then 
+                Fluent:Notify({Title = "Crafting", Content = Item .. " maxed out!", Duration = 2})
                 Active = false
             elseif CraftStatusSignal == "EMPTY" then 
+                Fluent:Notify({Title = "Crafting", Content = "Not enough materials!", Duration = 2})
                 Active = false
                 Stop = true
             elseif Att > 20 then 
@@ -935,7 +1053,6 @@ local function RunCraftingRoutine()
     
     if Con then Con:Disconnect() end
     
-    -- ✅ FIX: Use the improved reset function
     CloseCraftingGUI()
     task.wait(1)
     
@@ -963,7 +1080,6 @@ local function RunCraftingRoutine()
         task.wait(5)
     end
     
-    -- Return to farming area
     Fluent:Notify({Title = "Return", Content = "Returning to Mine's Field...", Duration = 3})
     
     for i = 1, 5 do 
@@ -974,7 +1090,7 @@ local function RunCraftingRoutine()
     end
     
     task.wait(1)
-    Fluent:Notify({Title = "Ready", Content = "Crafting complete!  Resuming.. .", Duration = 3})
+    Fluent:Notify({Title = "Ready", Content = "Crafting complete! Resuming...", Duration = 3})
 end
 local function Farm_Yui_Quest()
     if _G.IsTransforming then return end
@@ -1515,30 +1631,99 @@ elseif QuestDropdown.Value == "AGITO" then
     end
 
 elseif QuestDropdown.Value == "Miner Goon" then
+    print("🔹 Miner Goon Active - State:", CurrentState, "Count:", QuestCount)
+    
     if CurrentState == "FARMING" then
+        -- Check if completed 5 quests
         if QuestCount >= MaxQuests then
-            CurrentState = "CRAFTING"
-            RunCraftingRoutine()
-        else
-            if not WarpedToMine then
-                Fluent:Notify({Title = "Status", Content = "Starting... Warping to Mine first!", Duration = 3})
-                for i=1,5 do WarpTo("Mine's Field"); task.wait(0.2) end
-                task.wait(3); WarpedToMine = true
+            print("✅ 5 Quests complete! ExchangeCount:", ExchangeCount)
+            
+            -- Check if we've done 3 exchanges
+            if ExchangeCount >= MaxExchanges then
+                print("🎯 3 Exchanges done! Going to craft...")
+                
+                -- Go to crafting
+                CurrentState = "CRAFTING"
+                RunCraftingRoutine()
+                
+                -- After crafting, reset everything
+                ExchangeCount = 0
+                QuestCount = 0
+                WarpedToMine = false
+                CurrentState = "FARMING"
+                
+            else
+                print("💎 Doing exchange", (ExchangeCount + 1), "/3")
+                
+                -- Do exchange
+                local ExchangeSuccess = ExchangeOreWithLei()
+                
+                if ExchangeSuccess then
+                    ExchangeCount = ExchangeCount + 1
+                    QuestCount = 0  -- Reset quest counter
+                    
+                    Fluent:Notify({
+                        Title = "Exchange", 
+                        Content = "Exchange " .. ExchangeCount .. "/3 done!", 
+                        Duration = 3
+                    })
+                    
+                    print("✅ Exchange successful! Now:", ExchangeCount, "/3")
+                else
+                    warn("⚠️ Exchange failed, will retry next loop")
+                end
             end
+            
+        else
+            -- Still farming quests
+            print("🔨 Farming quest", QuestCount, "/5")
+            
+            -- First time? Warp to mine
+            if not WarpedToMine then
+                Fluent:Notify({
+                    Title = "Miner Goon", 
+                    Content = "Warping to Mine's Field...", 
+                    Duration = 3
+                })
+                
+                print("🌍 Warping to Mine's Field...")
+                
+                for i = 1, 5 do 
+                    pcall(function()
+                        WarpTo("Mine's Field")
+                    end)
+                    task.wait(0.5)
+                end
+                
+                task.wait(2)
+                WarpedToMine = true
+                
+                print("✅ Arrived at Mine's Field")
+            end
+            
+            -- Do quest
             if _G.AutoQuest then
                 local Status = GetMinerGoonQuestStatus()
+                print("📋 Quest Status:", Status)
+                
                 if Status == "COMPLETED" or Status == "NONE" then 
+                    print("📝 Accepting quest...")
                     Accept_MinerGoon_Quest()
+                    
                 elseif Status == "ACTIVE" then
                     if not _G.AutoFarm then break end
+                    print("⚔️ Killing Miner Goon...")
                     KillEnemy("Miner Goon Lv.50")
                 end
             else 
-                KillEnemy("Miner Goon Lv.50") 
+                print("⚔️ Killing Miner Goon (no quest)...")
+                KillEnemy("Miner Goon Lv.50")
             end
         end
+        
     elseif CurrentState == "CRAFTING" then
-        -- Crafting in progress
+        print("⏳ Currently crafting, waiting...")
+        task.wait(1)
     end
 
 elseif QuestDropdown.Value == "DAGUBA (Auto Dungeon)" then
