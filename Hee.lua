@@ -1056,15 +1056,17 @@ local function RunCraftingRoutine()
     CloseCraftingGUI()
     task.wait(1)
     
-    -- Reset state
+ -- Reset state (at the very end of RunCraftingRoutine)
     CurrentState = "FARMING"
     QuestCount = 0
     WarpedToMine = false
+    ExchangeCount = 0  -- ✅ ADD THIS LINE if missing
     
     Fluent:Notify({Title = "Return", Content = "Resetting character...", Duration = 3})
     
     local ResetSuccess = ForceResetCharacter()
     
+    -- ... rest of the function
     if ResetSuccess then
         task.wait(2)
         
@@ -1141,6 +1143,87 @@ local function Summon_Agito()
              TweenTo(Stone.CFrame * CFrame.new(0,0,3)); task.wait(0.2)
              local P = Stone:FindFirstChild("ProximityPrompt")
              if P then fireproximityprompt(P); task.wait(1.5) end
+        end
+    end
+end
+
+-- // SOUL FRAG HELPERS // --
+local function GetSoulFragStatus()
+    local success, result = pcall(function()
+        local GUI = LocalPlayer.PlayerGui.Main.QuestAlertFrame.QuestGUI
+        -- Note: User specified ["No CAP!"] as the quest frame name
+        local QuestFrame = GUI:FindFirstChild("No CAP!") 
+        
+        if QuestFrame and QuestFrame:FindFirstChild("TextLabel") and QuestFrame.Visible then
+            if string.find(QuestFrame.TextLabel.Text, "Completed") then 
+                return "COMPLETED" 
+            else 
+                return "ACTIVE" 
+            end
+        end
+        return "NONE"
+    end)
+    return success and result or "NONE"
+end
+
+local function Accept_Ryuga_Quest()
+    local NPC = Workspace.NPC:FindFirstChild("Ryuga")
+    if NPC then
+        local Root = NPC:FindFirstChild("HumanoidRootPart") or NPC:FindFirstChild("Torso")
+        if Root then
+            TweenTo(Root.CFrame * CFrame.new(0, 0, 3))
+            task.wait(0.5)
+            
+            -- Click
+            pcall(function() fireclickdetector(NPC.ClickDetector) end)
+            task.wait(1)
+            
+            -- Select Quest
+            pcall(function() 
+                DIALOGUE_EVENT:FireServer({Choice = "[ Repeatable Quest ]"}) 
+            end)
+            task.wait(0.5)
+            
+            -- Exit
+            pcall(function() DIALOGUE_EVENT:FireServer({Exit = true}) end)
+            task.wait(1)
+            _G.QuestingMode = false
+        end
+    else
+        warn("⚠️ Ryuga NPC not found!")
+    end
+end
+
+-- // MAIN SOUL FRAG FARM FUNCTION // --
+local function Farm_Soul_Frag_Quest()
+    local Status = GetSoulFragStatus()
+    
+    if Status == "NONE" or Status == "COMPLETED" then
+        if _G.AutoQuest then
+            Accept_Ryuga_Quest()
+        end
+        
+    elseif Status == "ACTIVE" then
+        if not _G.AutoFarm then return end
+        
+        -- Priority 1: Mad Isurugi
+        local Mob1 = LIVES_FOLDER:FindFirstChild("Mad Isurugi Lv.80")
+        
+        -- Priority 2: Utsumi
+        local Mob2 = LIVES_FOLDER:FindFirstChild("Utsumi Lv.80")
+        
+        if Mob1 and Mob1:FindFirstChild("Humanoid") and Mob1.Humanoid.Health > 0 then
+            Fluent:Notify({Title = "Soul Frag", Content = "Killing Mad Isurugi...", Duration = 2})
+            KillEnemy("Mad Isurugi Lv.80")
+            
+        elseif Mob2 and Mob2:FindFirstChild("Humanoid") and Mob2.Humanoid.Health > 0 then
+            Fluent:Notify({Title = "Soul Frag", Content = "Killing Utsumi...", Duration = 2})
+            KillEnemy("Utsumi Lv.80")
+            
+        else
+             -- Wait if neither are spawned
+             Fluent:Notify({Title = "Soul Frag", Content = "Waiting for spawns...", Duration = 1})
+             task.wait(1)
         end
     end
 end
@@ -1288,7 +1371,8 @@ local QuestDropdown = Tabs.Main:AddDropdown("QuestSelect", {
         "Zyga",
         "ARK",
         "Halloween Chest",
-        "ARK + HALLOWEEN CHEST"
+        "ARK + HALLOWEEN CHEST",
+        "SOUL FRAG"
     },
     Multi = false,
     Default = 1,
@@ -1629,102 +1713,81 @@ elseif QuestDropdown.Value == "AGITO" then
         if not _G.AutoFarm then break end
         KillEnemy("Agito Lv.90") 
     end
-
 elseif QuestDropdown.Value == "Miner Goon" then
-    print("🔹 Miner Goon Active - State:", CurrentState, "Count:", QuestCount)
-    
-    if CurrentState == "FARMING" then
-        -- Check if completed 5 quests
-        if QuestCount >= MaxQuests then
-            print("✅ 5 Quests complete! ExchangeCount:", ExchangeCount)
-            
-            -- Check if we've done 3 exchanges
-            if ExchangeCount >= MaxExchanges then
-                print("🎯 3 Exchanges done! Going to craft...")
-                
-                -- Go to crafting
-                CurrentState = "CRAFTING"
-                RunCraftingRoutine()
-                
-                -- After crafting, reset everything
-                ExchangeCount = 0
-                QuestCount = 0
-                WarpedToMine = false
-                CurrentState = "FARMING"
-                
-            else
-                print("💎 Doing exchange", (ExchangeCount + 1), "/3")
-                
-                -- Do exchange
-                local ExchangeSuccess = ExchangeOreWithLei()
-                
-                if ExchangeSuccess then
-                    ExchangeCount = ExchangeCount + 1
-                    QuestCount = 0  -- Reset quest counter
+                    local MaxQuests = 5
+                    local MaxExchanges = 3
+                    if not ExchangeCount then ExchangeCount = 0 end 
                     
-                    Fluent:Notify({
-                        Title = "Exchange", 
-                        Content = "Exchange " .. ExchangeCount .. "/3 done!", 
-                        Duration = 3
-                    })
-                    
-                    print("✅ Exchange successful! Now:", ExchangeCount, "/3")
-                else
-                    warn("⚠️ Exchange failed, will retry next loop")
-                end
-            end
-            
-        else
-            -- Still farming quests
-            print("🔨 Farming quest", QuestCount, "/5")
-            
-            -- First time? Warp to mine
-            if not WarpedToMine then
-                Fluent:Notify({
-                    Title = "Miner Goon", 
-                    Content = "Warping to Mine's Field...", 
-                    Duration = 3
-                })
-                
-                print("🌍 Warping to Mine's Field...")
-                
-                for i = 1, 5 do 
-                    pcall(function()
-                        WarpTo("Mine's Field")
-                    end)
-                    task.wait(0.5)
-                end
-                
-                task.wait(2)
-                WarpedToMine = true
-                
-                print("✅ Arrived at Mine's Field")
-            end
-            
-            -- Do quest
-            if _G.AutoQuest then
-                local Status = GetMinerGoonQuestStatus()
-                print("📋 Quest Status:", Status)
-                
-                if Status == "COMPLETED" or Status == "NONE" then 
-                    print("📝 Accepting quest...")
-                    Accept_MinerGoon_Quest()
-                    
-                elseif Status == "ACTIVE" then
-                    if not _G.AutoFarm then break end
-                    print("⚔️ Killing Miner Goon...")
-                    KillEnemy("Miner Goon Lv.50")
-                end
-            else 
-                print("⚔️ Killing Miner Goon (no quest)...")
-                KillEnemy("Miner Goon Lv.50")
-            end
-        end
-        
-    elseif CurrentState == "CRAFTING" then
-        print("⏳ Currently crafting, waiting...")
-        task.wait(1)
-    end
+                    if CurrentState == "FARMING" then
+                        -- 1. PRIORITY: CHECK EXCHANGES (3/3 -> Craft)
+                        if ExchangeCount >= MaxExchanges then
+                            print("🎯 3 Exchanges done! Going to craft...")
+                            CurrentState = "CRAFTING"
+                            Fluent:Notify({Title = "Crafting", Content = "3 exchanges complete! Starting craft...", Duration = 3})
+                            task.wait(1)
+                            RunCraftingRoutine()
+                            
+                            -- Reset after crafting
+                            ExchangeCount = 0
+                            QuestCount = 0
+                            
+                        -- 2. QUEST 5/5 -> GO EXCHANGE
+                        elseif QuestCount >= MaxQuests then
+                            print("💎 Quests done ("..QuestCount.."), Doing Exchange #" .. (ExchangeCount + 1))
+                            
+                            local NPC = Workspace.NPC:FindFirstChild("LeeTheMiner")
+                            if NPC then
+                                local Root = GetRootPart()
+                                if Root then
+                                    -- Go to NPC
+                                    TweenTo(NPC.HumanoidRootPart.CFrame * CFrame.new(0,0,3))
+                                    fireclickdetector(NPC.ClickDetector); task.wait(1)
+                                    
+                                    -- 1. Select Exchange
+                                    DIALOGUE_EVENT:FireServer({Choice = "[ Exchange ]"}) 
+                                    task.wait(0.5)
+                                    
+                                    -- 2. Confirm Exchange (ADDED THIS)
+                                    DIALOGUE_EVENT:FireServer({Choice = "[ Confirm ]"})
+                                    task.wait(0.5)
+                                    
+                                    -- 3. Exit
+                                    DIALOGUE_EVENT:FireServer({Exit = true})
+                                    
+                                    -- Update Counters
+                                    ExchangeCount = ExchangeCount + 1
+                                    QuestCount = 0
+                                    Fluent:Notify({Title = "Exchange", Content = "Done " .. ExchangeCount .. "/3", Duration = 3})
+                                end
+                            else
+                                Fluent:Notify({Title = "Error", Content = "Miner NPC not found!", Duration = 3})
+                            end
+                            
+                        else
+                            -- 3. FARM QUESTS (Normal Logic)
+                            if not WarpedToMine then
+                                Fluent:Notify({Title = "Status", Content = "Warping to Mine...", Duration = 3})
+                                for i=1,5 do WarpTo("Mine's Field"); task.wait(0.2) end
+                                task.wait(3); WarpedToMine = true
+                            end
+                            
+                            if _G.AutoQuest then
+                                local Status = GetMinerGoonQuestStatus()
+                                if Status == "COMPLETED" or Status == "NONE" then 
+                                    Accept_MinerGoon_Quest() 
+                                    -- Note: Accept function should increment QuestCount when turning in!
+                                elseif Status == "ACTIVE" then 
+                                    if not _G.AutoFarm then break end
+                                    KillEnemy("Miner Goon Lv.50") 
+                                end
+                            else 
+                                KillEnemy("Miner Goon Lv.50") 
+                            end
+                        end
+                        
+                    elseif CurrentState == "CRAFTING" then
+                        task.wait(1)
+                    end
 
 elseif QuestDropdown.Value == "DAGUBA (Auto Dungeon)" then
     local Status = GetDagubaQuestStatus()
@@ -2012,7 +2075,8 @@ elseif QuestDropdown.Value == "Halloween Chest" then
             end
         end
     end
-
+elseif QuestDropdown.Value == "SOUL FRAG" then
+                    Farm_Soul_Frag_Quest()
 elseif QuestDropdown.Value == "ARK + HALLOWEEN CHEST" then
                     -- // 1. CHECK ARK QUEST // --
                     local ArkStatus = GetARKQuestStatus()
