@@ -161,7 +161,127 @@ end
 _G.AutoCombo = false
 _G.ComboName = "Faiz Blaster"
 
--- // HELPER FUNCTIONS // --
+-- // KUUGA ULTIMATE HELPER FUNCTIONS // --
+local function GetSkillCooldown(key)
+    local success, cooldown = pcall(function()
+        local player = game:GetService("Players").LocalPlayer
+        local skillValue = player:FindFirstChild(key)
+        if skillValue and (skillValue:IsA("NumberValue") or skillValue:IsA("IntValue")) then
+            return skillValue.Value
+        end
+        return 0
+    end)
+    return success and cooldown or 0
+end
+
+local function IsKuugaSkillReady(key)
+    local cooldown = GetSkillCooldown(key)
+    return cooldown == 0
+end
+
+local function UseKuugaSkill(key)
+    print("🎯 Using Kuuga Skill:", key)
+    
+    local Character = LocalPlayer.Character
+    if not Character then 
+        warn("❌ Character not found!")
+        return 
+    end
+    
+    local Handler = Character:FindFirstChild("PlayerHandler")
+    if not Handler then 
+        warn("❌ PlayerHandler not found!")
+        return 
+    end
+    
+    local Event = Handler:FindFirstChild("HandlerEvent")
+    if not Event then 
+        warn("❌ HandlerEvent not found!")
+        return 
+    end
+    
+    local success, err = pcall(function()
+        Event:FireServer({ 
+            Skill = true, 
+            AttackType = "Down",
+            Key = key
+        })
+    end)
+    
+    if success then
+        print("✅ Skill " .. key .. " fired!")
+        Fluent:Notify({Title = "Kuuga", Content = "Used Skill " .. key, Duration = 1})
+    else
+        warn("❌ Failed to fire skill " .. key .. ":", err)
+    end
+    
+    task.wait(0.1)
+end
+
+local function HoldSkillEUntilRReady()
+    print("🎯 Holding E until R & V are ready...")
+    
+    local Character = LocalPlayer.Character
+    if not Character then 
+        warn("❌ Character not found for Hold E!")
+        return 
+    end
+    
+    local Handler = Character:FindFirstChild("PlayerHandler")
+    if not Handler then 
+        warn("❌ PlayerHandler not found for Hold E!")
+        return 
+    end
+    
+    local Event = Handler:FindFirstChild("HandlerEvent")
+    if not Event then 
+        warn("❌ HandlerEvent not found for Hold E!")
+        return 
+    end
+    
+    Fluent:Notify({Title = "Kuuga", Content = "Holding E until R&V ready...", Duration = 2})
+    
+    -- Start holding E
+    pcall(function()
+        Event:FireServer({ 
+            Skill = true, 
+            AttackType = "Down",
+            Key = "E" 
+        })
+    end)
+    
+    local holdStartTime = tick()
+    local maxHoldTime = 12
+    local checkInterval = 0.3
+    
+    while (tick() - holdStartTime) < maxHoldTime do
+        -- Check both R AND V cooldowns
+        local rReady = GetSkillCooldown("R") == 0
+        local vReady = GetSkillCooldown("V") == 0
+        
+        -- If BOTH are ready, release E
+        if rReady and vReady then
+            print("✅ R & V both ready! Releasing E")
+            Fluent:Notify({Title = "Kuuga", Content = "R&V Ready! Releasing E", Duration = 1})
+            task.wait(0.5)
+            break
+        end
+        
+        -- Keep holding E
+        task.wait(checkInterval)
+        pcall(function()
+            Event:FireServer({ 
+                Skill = true, 
+                AttackType = "Down",
+                Key = "E" 
+            })
+        end)
+    end
+    
+    -- Delay after releasing E before next action
+    task.wait(1.5)
+    print("✅ E release complete, ready for next action")
+end
 
 local function GetRootPart()
     local Character = LocalPlayer.Character
@@ -328,14 +448,12 @@ end
 -- // COMBO HELPER FUNCTIONS // --
 local function CheckFaizMode()
     local isMode = false
-    -- 1. Check UI Text (Mode Active?)
     pcall(function()
         local cdText = LocalPlayer.PlayerGui.Main.PreviewCore.CD_TEXT
         if cdText and cdText.Visible and cdText.Text ~= "" then
             isMode = true
         end
     end)
-    -- 2. Safety Stamina Check
     if isMode then
         local Stats = LocalPlayer:FindFirstChild("RiderStats")
         if Stats and Stats:FindFirstChild("Stamina") and Stats.Stamina.Value <= 0 then
@@ -360,58 +478,169 @@ local function CheckCombatText()
     return success and visible
 end
 
--- // UPDATED COMBO LOGIC // --
+
+-- // COMPLETE RUNCOMBO FUNCTION WITH KUUGA ULTIMATE // --
 local function RunCombo(Target)
-    if not Target or not Target:FindFirstChild("Humanoid") or Target.Humanoid.Health <= 0 then return end
-    
-    if _G.ComboName == "Faiz Blaster" then
-        if CheckFaizMode() then
-            -- NEW CHECK: If CombatText is visible, JUST M1
-            if CheckCombatText() then
-                 -- Visible == True that mean Spam M1
-                 FireAttack()
-                 task.wait() -- FAST SPAM
+    local success, err = pcall(function()
+        if not Target or not Target:FindFirstChild("Humanoid") or Target.Humanoid.Health <= 0 then return end
+        
+        if _G.ComboName == "Faiz Blaster" then
+            if CheckFaizMode() then
+                if CheckCombatText() then
+                     FireAttack()
+                     task.wait()
+                else
+                    FireSkill("V")
+                    task.wait(0.15)
+                    
+                    local stamina = GetStamina()
+                    
+                    if stamina > 500 then
+                        FireSkill("R"); task.wait(0.15)
+                        if stamina > 1300 then
+                            FireSkill("E"); task.wait(0.15)
+                        end
+                    end
+                    
+                    for i=1, 8 do 
+                        FireAttack()
+                        task.wait()
+                    end
+                end
             else
-                 -- Visible == False -> Use Skills (V Priority)
-                 
-                 -- 1. USE SKILL V FIRST (Priority)
-                FireSkill("V")
-                task.wait(0.15)
+                DoCombat()
+            end
+            
+        elseif _G.ComboName == "Chronos" then
+            FireSkill("C"); task.wait(0.2)
+            if not Target.Parent then return end
+            FireSkill("E"); task.wait(0.2)
+            if not Target.Parent then return end
+            FireSkill("V"); task.wait(0.2)
+            if not Target.Parent then return end
+            FireSkill("R"); task.wait(0.2)
+            
+            for i=1, 5 do FireAttack(); task.wait(0.1) end
+            
+        elseif _G.ComboName == "Kuuga Ultimate" then
+            if not Target.Parent or Target.Humanoid.Health <= 0 then return end
+            
+            -- Get current status
+            local rOnCooldown = GetSkillCooldown("R") > 0
+            local vOnCooldown = GetSkillCooldown("V") > 0
+            local eOnCooldown = GetSkillCooldown("E") > 0
+            local currentStamina = GetStamina()
+            
+            print("📊 Kuuga Status - R CD:", rOnCooldown, "| V CD:", vOnCooldown, "| E CD:", eOnCooldown, "| Stamina:", currentStamina)
+            
+            -- ✅ PRIORITY 1: HIGH STAMINA + R & V READY → Full Combo
+            if currentStamina >= 1800 and not rOnCooldown and not vOnCooldown then
+                print("🔥 HIGH STAMINA COMBO: R -> V -> (wait) -> E")
+                Fluent:Notify({Title = "Kuuga", Content = "High Stamina! Full Combo", Duration = 2})
                 
-                -- 2. CHECK STAMINA FOR R AND E
-                local stamina = GetStamina()
+                -- Step 1: Use R
+                print("🎯 Step 1: Using Skill R...")
+                UseKuugaSkill("R")
+                task.wait(1.2) -- Longer delay after R
                 
-                if stamina > 500 then
-                    FireSkill("R"); task.wait(0.15)
-                    if stamina > 1300 then
-                        FireSkill("E"); task.wait(0.15)
+                -- Verify R was used
+                local rUsed = GetSkillCooldown("R") > 0
+                if not rUsed then
+                    print("⚠️ R failed, retrying...")
+                    UseKuugaSkill("R")
+                    task.wait(0.8)
+                end
+                
+                if not Target.Parent or Target.Humanoid.Health <= 0 then return end
+                
+                -- Step 2: Use V
+                print("🎯 Step 2: Using Skill V...")
+                UseKuugaSkill("V")
+                task.wait(1.2) -- Longer delay after V
+                
+                -- Verify V was used
+                local vUsed = GetSkillCooldown("V") > 0
+                if not vUsed then
+                    print("⚠️ V failed, retrying...")
+                    UseKuugaSkill("V")
+                    task.wait(0.8)
+                end
+                
+                if not Target.Parent or Target.Humanoid.Health <= 0 then return end
+                
+                -- Step 3: Wait before checking E
+                task.wait(1.5) -- ✅ DELAY BEFORE CHECKING E
+                
+                local eStillOnCooldown = GetSkillCooldown("E") > 0
+                
+                if not eStillOnCooldown then
+                    print("✅ E is ready! Holding E until R&V ready...")
+                    Fluent:Notify({Title = "Kuuga", Content = "Holding E...", Duration = 2})
+                    HoldSkillEUntilRReady()
+                else
+                    print("⏳ E on cooldown, spamming M1...")
+                    Fluent:Notify({Title = "Kuuga", Content = "E on CD! M1 spam", Duration = 1})
+                    for i = 1, 20 do
+                        if not Target.Parent or Target.Humanoid.Health <= 0 then break end
+                        FireAttack()
+                        task.wait(0.05)
                     end
                 end
                 
-                -- 3. FASTER M1 BURST
-                for i=1, 8 do 
+            -- ✅ PRIORITY 2: STAMINA 700-1799 + E READY → Hold E Only
+            elseif currentStamina >= 700 and currentStamina < 1800 and not eOnCooldown then
+                print("🔋 MEDIUM STAMINA: Hold E only")
+                Fluent:Notify({Title = "Kuuga", Content = "Med Stamina! Holding E", Duration = 2})
+                HoldSkillEUntilRReady()
+                
+            -- ✅ PRIORITY 3: STAMINA < 700 → SPAM M1 ONLY
+            elseif currentStamina < 700 then
+                print("⚠️ LOW STAMINA: M1 Spam only")
+                Fluent:Notify({Title = "Kuuga", Content = "Low Stamina! M1 only", Duration = 1})
+                for i = 1, 12 do
+                    if not Target.Parent or Target.Humanoid.Health <= 0 then break end
                     FireAttack()
-                    task.wait() -- Minimal wait for max spam
+                    task.wait(0.05)
+                end
+                
+            -- ✅ PRIORITY 4: E ON COOLDOWN + STAMINA >= 700 → M1 Spam
+            elseif eOnCooldown and currentStamina >= 700 then
+                print("⏳ E on cooldown (stamina OK) -> M1 Spam")
+                for i = 1, 10 do
+                    if not Target.Parent or Target.Humanoid.Health <= 0 then break end
+                    FireAttack()
+                    task.wait(0.05)
+                end
+                
+            -- ✅ PRIORITY 5: R or V ON COOLDOWN → M1 Spam
+            elseif rOnCooldown or vOnCooldown then
+                print("⏳ R or V on cooldown -> M1 Spam")
+                for i = 1, 8 do
+                    if not Target.Parent or Target.Humanoid.Health <= 0 then break end
+                    FireAttack()
+                    task.wait(0.05)
+                end
+                
+            -- ✅ FALLBACK: Default M1
+            else
+                print("🤷 Fallback: M1 spam")
+                for i = 1, 5 do
+                    if not Target.Parent or Target.Humanoid.Health <= 0 then break end
+                    FireAttack()
+                    task.wait(0.05)
                 end
             end
         else
-            -- Not in Blaster Mode? Use standard settings
             DoCombat()
         end
-        
-    elseif _G.ComboName == "Chronos" then
-        FireSkill("C"); task.wait(0.2)
-        if not Target.Parent then return end
-        FireSkill("E"); task.wait(0.2)
-        if not Target.Parent then return end
-        FireSkill("V"); task.wait(0.2)
-        if not Target.Parent then return end
-        FireSkill("R"); task.wait(0.2)
-        
-        for i=1, 5 do FireAttack(); task.wait(0.1) end
+    end)
+    
+    if not success then
+        warn("❌ RunCombo Error:", err)
+        print("Falling back to DoCombat()")
+        pcall(function() DoCombat() end)
     end
 end
-
 -- Noclip
 task.spawn(function()
     while task.wait(1) do
@@ -1372,7 +1601,8 @@ local QuestDropdown = Tabs.Main:AddDropdown("QuestSelect", {
         "ARK",
         "Halloween Chest",
         "ARK + HALLOWEEN CHEST",
-        "SOUL FRAG"
+        "SOUL FRAG",
+        "Trial of Splash"
     },
     Multi = false,
     Default = 1,
@@ -1434,7 +1664,7 @@ local ComboToggle = Tabs.Main:AddToggle("AutoCombo", {Title = "Enable Combo", De
 ComboToggle:OnChanged(function() _G.AutoCombo = Options.AutoCombo.Value end)
 local ComboSelect = Tabs.Main:AddDropdown("ComboSelect", {
     Title = "Select Combo",
-    Values = {"Faiz Blaster", "Chronos"},
+    Values = {"Faiz Blaster", "Chronos", "Kuuga Ultimate"},
     Multi = false,
     Default = 1,
 })
@@ -2165,6 +2395,77 @@ elseif QuestDropdown.Value == "ARK + HALLOWEEN CHEST" then
                             else
                                 Fluent:Notify({Title = "Skip", Content = "Halloween Chest not found!", Duration = 2})
                             end
+                        end
+                    end
+
+elseif QuestDropdown.Value == "Trial of Splash" then
+                    -- 1. CHECK IF IN DUNGEON (Direct Check)
+                    local DungeonVal = game.Players.LocalPlayer:FindFirstChild("Dungeon")
+                    local InSplash = (DungeonVal and DungeonVal.Value == "Trial of Splash")
+                    
+                    if not InSplash then
+                        if not IsEnteringDungeon then
+                            IsEnteringDungeon = true
+                            -- Fire Entry Remote
+                            game:GetService("ReplicatedStorage").Remote.Event.RiderTrial:FireServer("Trial of Splash")
+                            
+                            local T = 0
+                            repeat 
+                                task.wait(1)
+                                T = T + 1
+                                local D = game.Players.LocalPlayer:FindFirstChild("Dungeon")
+                            until (D and D.Value == "Trial of Splash") or T > 10 or not _G.AutoFarm
+                            
+                            IsEnteringDungeon = false
+                        end
+                        task.wait(2)
+                    else
+                        -- 2. COMBAT LOGIC
+                        local Boss = LIVES_FOLDER:FindFirstChild("Itomakeiei Lv.90")
+                        
+                        -- Check Priority (Minions first)
+                        local Minion = nil
+                        for _, mob in pairs(LIVES_FOLDER:GetChildren()) do
+                            if mob.Name == "Goon Lv.45" and mob:FindFirstChild("Humanoid") and mob.Humanoid.Health > 0 then
+                                Minion = mob
+                                break
+                            end
+                        end
+                        
+                        if Minion then
+                            Fluent:Notify({Title = "Priority", Content = "Killing Goon Lv.45!", Duration = 1})
+                            KillEnemy("Goon Lv.45")
+                            
+                        elseif Boss and Boss:FindFirstChild("Humanoid") and Boss.Humanoid.Health > 0 then
+                            local Root = GetRootPart()
+                            if Root and Boss:FindFirstChild("HumanoidRootPart") then
+                                TweenTo(Boss.HumanoidRootPart.CFrame * CFrame.new(0, 2, _G.AttackDist), 60)
+                                
+                                while _G.AutoFarm and Boss.Parent and Boss.Humanoid.Health > 0 do
+                                    -- Break if minion spawns
+                                    if LIVES_FOLDER:FindFirstChild("Goon Lv.45") then break end
+                                    
+                                    -- ✅ DETECT BLOCKING (Wait if blocking)
+                                    if Boss:FindFirstChild("SpecialBlock") then
+                                        task.wait(0.1) 
+                                    else
+                                        -- Safe to attack
+                                        if _G.IsTransforming then 
+                                            task.wait(0.2)
+                                        else
+                                            local B_CF = Boss.HumanoidRootPart.CFrame
+                                            Root.CFrame = B_CF * CFrame.new(0, HEIGHT_OFFSET, _G.AttackDist)
+                                            Root.Velocity = Vector3.zero
+                                            
+                                            if _G.AutoCombo then RunCombo(Boss) else DoCombat() end
+                                        end
+                                        task.wait(ATTACK_SPEED)
+                                    end
+                                end
+                            end
+                        else
+                             Fluent:Notify({Title = "Splash", Content = "Waiting for spawns...", Duration = 1})
+                             task.wait(1)
                         end
                     end
 -- ✅ IMPROVED ARK QUEST WITH FULL LOGIC (keep this as is)
