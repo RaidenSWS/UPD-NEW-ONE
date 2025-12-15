@@ -283,6 +283,16 @@ local function HoldSkillEUntilRReady()
     print("✅ E release complete, ready for next action")
 end
 
+
+-- Help Function 
+
+
+local function IsInDungeon(DungeonName)
+    local D = LocalPlayer:FindFirstChild("Dungeon")
+    if D and D.Value == DungeonName then return true end
+    return false
+end
+
 local function GetRootPart()
     local Character = LocalPlayer.Character
     if not Character then return nil end
@@ -1584,50 +1594,59 @@ local function RunZygaLogic()
     end
 end
 
--- // UI ELEMENTS // --
-local YuiSection = Tabs.Main:AddSection("QUEST")
+-- // UI ELEMENTS (SEPARATED) // --
+
+-- [[ QUEST SECTION ]] --
+local QuestSection = Tabs.Main:AddSection("QUESTS")
 
 local QuestDropdown = Tabs.Main:AddDropdown("QuestSelect", {
     Title = "Select Quest",
     Values = {
-        "Quest 1-40", 
+        "quest 1-40", 
         "Mummy", 
         "Quest 40-80", 
         "Rook&Bishop", 
         "AGITO", 
         "Miner Goon", 
-        "DAGUBA (Auto Dungeon)", 
-        "Zyga",
-        "ARK",
-        "Halloween Chest",
         "ARK + HALLOWEEN CHEST",
-        "SOUL FRAG",
-        "Trial of Splash"
+        "SOUL FRAG"
     },
     Multi = false,
     Default = 1,
 })
 
-local FarmToggle = Tabs.Main:AddToggle("FarmToggle", {Title = "Enable Auto Farm", Default = false })
+local QuestToggle = Tabs.Main:AddToggle("QuestFarm", {Title = "Enable Quest Farm", Default = false })
 
--- // WORLD BOSS TAB ELEMENTS // --
-local BossSection = Tabs.WorldBoss:AddSection("BOSS SELECT")
-local BossDropdown = Tabs.WorldBoss:AddDropdown("BossSelect", {
-    Title = "Select Boss",
-    Values = {"Golem Bugster", "Chronos"},
+-- [[ DUNGEON SECTION ]] --
+local DungeonSection = Tabs.Main:AddSection("DUNGEONS")
+
+local DungeonDropdown = Tabs.Main:AddDropdown("DungeonSelect", {
+    Title = "Select Dungeon",
+    Values = {
+        "DAGUBA (Auto Dungeon)", 
+        "Trial of Splash", 
+        "Zyga"
+    },
     Multi = false,
     Default = 1,
 })
+
+local DungeonToggle = Tabs.Main:AddToggle("DungeonFarm", {Title = "Enable Dungeon Farm", Default = false })
+
+
+-- // BOSS UI // --
+local BossSection = Tabs.WorldBoss:AddSection("BOSS SELECT")
+local BossDropdown = Tabs.WorldBoss:AddDropdown("BossSelect", { Title = "Select Boss", Values = {"Golem Bugster", "Chronos"}, Multi = false, Default = 1 })
 local BossToggle = Tabs.WorldBoss:AddToggle("AutoBoss", {Title = "Auto Kill Boss", Default = false })
 
 BossToggle:OnChanged(function()
     _G.AutoBoss = Options.AutoBoss.Value
-    
     if _G.AutoBoss then
-        if _G.AutoFarm then Options.FarmToggle:SetValue(false) end
-        HenshinDone = false
-        EquipDone = false
+        -- Disable farms to prevent conflict
+        if Options.QuestFarm.Value then Options.QuestFarm:SetValue(false) end
+        if Options.DungeonFarm.Value then Options.DungeonFarm:SetValue(false) end
         
+        HenshinDone = false; EquipDone = false
         task.spawn(function()
             while _G.AutoBoss do
                 local TargetBossName = ""
@@ -1636,9 +1655,9 @@ BossToggle:OnChanged(function()
                 
                 if TargetBossName ~= "" then
                     local Boss = LIVES_FOLDER:FindFirstChild(TargetBossName)
-                    if Boss then
+                    if Boss then 
                         Fluent:Notify({Title = "Boss Found", Content = "Killing " .. TargetBossName, Duration = 2})
-                        KillBossByName(TargetBossName)
+                        KillBossByName(TargetBossName) 
                     end
                 end
                 task.wait(1)
@@ -1647,9 +1666,10 @@ BossToggle:OnChanged(function()
     end
 end)
 
+-- // SETTINGS UI // --
 local PreparationSection = Tabs.Main:AddSection("PREPARATION")
 local ToggleHenshin = Tabs.Main:AddToggle("AutoHenshin", {Title = "Auto Henshin (H)", Default = true })
-ToggleHenshin:OnChanged(function() _G.AutoHenshin = Options.AutoHenshin. Value end)
+ToggleHenshin:OnChanged(function() _G.AutoHenshin = Options.AutoHenshin.Value end)
 local ToggleEquip = Tabs.Main:AddToggle("AutoEquip", {Title = "Auto Equip Weapon", Default = true })
 ToggleEquip:OnChanged(function() _G.AutoEquip = Options.AutoEquip.Value end)
 
@@ -1693,742 +1713,226 @@ M1Toggle:OnChanged(function() _G.AutoM1 = Options.M1Toggle.Value end)
 local SpeedSlider = Tabs.Main:AddSlider("SpeedSlider", {Title = "Tween Speed", Default = 60, Min = 10, Max = 300, Rounding = 0, Callback = function(Value) _G.TweenSpeed = Value end})
 local DistSlider = Tabs.Main:AddSlider("DistSlider", {Title = "Position Behind", Default = 4, Min = 0, Max = 15, Rounding = 1, Callback = function(Value) _G.AttackDist = Value end})
 
--- // === PASTE THIS IN THE SHARED FUNCTIONS AREA (ABOVE MAIN LOOP) === //
 
--- 1. CONFIG
-local CHEST_SCAN_POSITIONS = {
-    CFrame.new(-866.59, 25.52, -288.02),
-    CFrame.new(-1088.06, 2.65, -644.51),
-    CFrame.new(-1403.94, 0.12, 497.61)
-}
-local ARK_NPC_POSITION = CFrame.new(-1403.94, 0.12, 497.61)
-local SPAWN_POSITIONS = {
-    CFrame.new(-866.59, 25.52, -288.02),
-    CFrame.new(-1088.06, 2.65, -644.51),
-    CFrame.new(-1403.94, 0.12, 497.61)
-}
-
--- 2. CHEST HELPERS
-local function FindHalloweenChest()
-    if Workspace:FindFirstChild("KeyItem") then
-        local Chest = Workspace.KeyItem:FindFirstChild("Halloween Chest")
-        if Chest then return Chest end
-    end
-    return nil
-end
-
-local function ScanForChest()
-    Fluent:Notify({Title = "Halloween", Content = "Scanning...", Duration = 2})
+-- // 1. QUEST FARM LOGIC // --
+QuestToggle:OnChanged(function()
+    _G.AutoQuestFarm = Options.QuestFarm.Value
     
-    for i, ScanPos in ipairs(CHEST_SCAN_POSITIONS) do
-        if not _G.AutoFarm then return nil end
-        
-        local RootPart = GetRootPart()
-        if not RootPart then return nil end
-        
-        -- Check BEFORE moving
-        local Chest = FindHalloweenChest()
-        if Chest then return Chest end
-
-        -- Start Moving
-        local Distance = (ScanPos.Position - RootPart.Position).Magnitude
-        local Time = Distance / _G.TweenSpeed
-        local TweenInfo = TweenInfo.new(Time, Enum.EasingStyle.Linear)
-        local Tween = TweenService:Create(RootPart, TweenInfo, {CFrame = ScanPos})
-        
-        Tween:Play()
-        
-        -- STOP & GO LOGIC: Scan WHILE moving
-        local StartTime = tick()
-        while (tick() - StartTime) < Time do
-            if not _G.AutoFarm then Tween:Cancel(); return nil end
-            if _G.IsTransforming then Tween:Cancel(); while _G.IsTransforming do task.wait(0.1) end return nil end
-
-            -- !!! IF FOUND, STOP TWEEN IMMEDIATELY !!!
-            Chest = FindHalloweenChest()
-            if Chest then
-                local ChestPart = Chest:IsA("BasePart") and Chest or Chest:FindFirstChildWhichIsA("BasePart", true)
-                if ChestPart then
-                    Tween:Cancel() -- STOP HERE
-                    Fluent:Notify({Title = "Found!", Content = "Stopping to collect!", Duration = 2})
-                    return Chest
-                end
-            end
-            
-            task.wait(0.1)
-        end
-    end
-    return nil
-end
-
-local function PressHalloweenChest()
-    local Chest = FindHalloweenChest()
-    if not Chest then return false end
-    local ChestPart = Chest:IsA("BasePart") and Chest or Chest:FindFirstChildWhichIsA("BasePart", true)
-    if not ChestPart then return false end
-    
-    TweenTo(ChestPart.CFrame * CFrame.new(0, 0, 3))
-    task.wait(0.5)
-    
-    local Prompt = Chest:FindFirstChildWhichIsA("ProximityPrompt", true)
-    if Prompt then 
-        Press_E_Virtual(Prompt, 2) 
-        task.wait(2) 
-        return true 
-    end
-    return false
-end
-
-local function OpenCurrencyCrate()
-    pcall(function() game:GetService("ReplicatedStorage").Remote.Function.InventoryFunction:InvokeServer("Currency Crate I") end)
-end
-
--- 3. MOB HELPERS
-local function AreAllHollowedGoonsDead()
-    for _, mob in pairs(LIVES_FOLDER:GetChildren()) do
-        if mob.Name == "Hollowed Goon Lv.80" then
-            local Humanoid = mob:FindFirstChild("Humanoid")
-            if Humanoid and Humanoid.Health > 0 then return false end
-        end
-    end
-    return true
-end
-
-local function WaitForEnemySpawn()
-    local StartTime = tick()
-    while (tick() - StartTime) < 5 and _G.AutoFarm do
-        if LIVES_FOLDER:FindFirstChild("Hollowed Goon Lv.80") then return true end
-        task.wait(0.3)
-    end
-    return false
-end
-
-local function KillAllHollowedGoons()
-    local MaxLoops = 50
-    local LoopCount = 0
-    while _G.AutoFarm and LoopCount < MaxLoops do
-        LoopCount = LoopCount + 1
-        if AreAllHollowedGoonsDead() then break end
-        
-        local Enemy = nil
-        for _, mob in pairs(LIVES_FOLDER:GetChildren()) do
-            if mob.Name == "Hollowed Goon Lv.80" then
-                local Humanoid = mob:FindFirstChild("Humanoid")
-                if Humanoid and Humanoid.Health > 0 then Enemy = mob; break end
-            end
-        end
-        
-        if Enemy then 
-            KillEnemy("Hollowed Goon Lv.80")
-            task.wait(0.5) 
-        else 
-            task.wait(0.5) 
-        end
-    end
-end
-
--- 4. ARK HELPERS
-local function GetARKQuestStatus()
-    local success, result = pcall(function()
-        local GUI = LocalPlayer.PlayerGui.Main.QuestAlertFrame.QuestGUI
-        local QuestFrame = GUI:FindFirstChild("Desire Games")
-        if QuestFrame and QuestFrame:FindFirstChild("TextLabel") and QuestFrame.TextLabel.Visible then
-            if string.find(QuestFrame.TextLabel.Text, "Completed") then return "COMPLETED" else return "ACTIVE" end
-        end
-        return "NONE"
-    end)
-    return success and result or "NONE"
-end
-
-local function AcceptARKQuest()
-    TweenTo(ARK_NPC_POSITION); task.wait(1)
-    local ARKNpc = Workspace.NPC:FindFirstChild("ARKReplicator")
-    if ARKNpc then
-        local ARKPart = ARKNpc.PrimaryPart or ARKNpc:FindFirstChild("ARK Replicator") or ARKNpc:FindFirstChildWhichIsA("BasePart")
-        if ARKPart then
-            TweenTo(ARKPart.CFrame * CFrame.new(0, 0, 3)); task.wait(0.5)
-            pcall(function() fireclickdetector(ARKNpc.ClickDetector) end); task.wait(1)
-            pcall(function() DIALOGUE_EVENT:FireServer({Choice = "[ Desire Games ]"}) end); task.wait(0.5)
-            pcall(function() DIALOGUE_EVENT:FireServer({Exit = true}) end); task.wait(1)
-        end
-    end
-end
-
-local function TurnInARKQuest()
-    TweenTo(ARK_NPC_POSITION); task.wait(1)
-    local ARKNpc = Workspace.NPC:FindFirstChild("ARKReplicator")
-    if ARKNpc then
-        local ARKPart = ARKNpc.PrimaryPart or ARKNpc:FindFirstChild("ARK Replicator") or ARKNpc:FindFirstChildWhichIsA("BasePart")
-        if ARKPart then
-            TweenTo(ARKPart.CFrame * CFrame.new(0, 0, 3)); task.wait(0.5)
-            pcall(function() fireclickdetector(ARKNpc.ClickDetector) end); task.wait(1)
-            pcall(function() DIALOGUE_EVENT:FireServer({Choice = "Completed it."}) end); task.wait(0.5)
-            pcall(function() DIALOGUE_EVENT:FireServer({Exit = true}) end); task.wait(1)
-        end
-    end
-end
-
-FarmToggle:OnChanged(function()
-    _G.AutoFarm = Options.FarmToggle.Value
-    
+    -- Reset States
     CurrentState = "FARMING"
     QuestCount = 0
-    WarpedToMine = false 
+    WarpedToMine = false
+    ExchangeCount = 0
     
-    if _G.AutoFarm then
+    if _G.AutoQuestFarm then
+        -- Disable others
         if _G.AutoBoss then Options.AutoBoss:SetValue(false) end
-        HenshinDone = false 
-        EquipDone = false
-        _G.IsTransforming = false
-
+        if Options.DungeonFarm.Value then Options.DungeonFarm:SetValue(false) end
+        
+        _G.AutoFarm = true -- Global flag for helpers
+        HenshinDone = false; EquipDone = false; _G.IsTransforming = false
+        
         task.spawn(function()
-            while _G.AutoFarm do
-                Fluent:Notify({Title = "Status", Content = "Running Quest: " .. QuestDropdown.Value, Duration = 1}) 
+            while _G.AutoQuestFarm do
+                local QuestVal = Options.QuestSelect.Value
+                Fluent:Notify({Title = "Quest Farm", Content = "Running: " .. QuestVal, Duration = 1})
+                
                 while _G.IsTransforming do task.wait(0.5) end
                 
-                if QuestDropdown.Value == "Quest 1-40" then
-    if _G.AutoQuest then Farm_Yui_Quest() end
-    if not _G.AutoFarm then break end
-    KillEnemy("Dragon User Lv.7"); task.wait(ATTACK_SPEED)
-    if not _G.AutoFarm then break end
-    KillEnemy("Crab User Lv.10"); task.wait(ATTACK_SPEED)
-    if not _G.AutoFarm then break end
-    KillEnemy("Bat User Lv.12")
-    if _G.AutoQuest and _G.AutoFarm then WaitForQuestCompletion("Dragon's Alliance") end
-
-elseif QuestDropdown.Value == "Mummy" then
-    local Status = GetWindQuestStatus()
-    if Status == "COMPLETED" or Status == "NONE" then
-        if _G.AutoQuest then Accept_Wind_Quest() end
-    elseif Status == "ACTIVE" then
-        if not _G.AutoFarm then break end
-        KillEnemy("Mummy Lv.40")
-    end
-
-elseif QuestDropdown.Value == "Quest 40-80" then
-    local Status = GetMalcomQuestStatus()
-    if Status == "COMPLETED" or Status == "NONE" then
-        if _G.AutoQuest then Accept_Malcom_Quest() end
-    elseif Status == "ACTIVE" then
-        if not _G.AutoFarm then break end
-        local M1 = LIVES_FOLDER:FindFirstChild("Dark Dragon User Lv.40")
-        local M2 = LIVES_FOLDER:FindFirstChild("Gazelle User Lv.45")
-        if M1 then KillEnemy("Dark Dragon User Lv.40")
-        elseif M2 then KillEnemy("Gazelle User Lv.45") end
-    end
-
-elseif QuestDropdown.Value == "Rook&Bishop" then
-    local Status = GetRookBishopQuestStatus()
-    if Status == "COMPLETED" or Status == "NONE" then
-        if _G.AutoQuest then Accept_RookBishop_Quest() end
-    elseif Status == "ACTIVE" then
-        if not _G.AutoFarm then break end
-        Summon_RookBishop()
-        if not _G.AutoFarm then break end
-        if LIVES_FOLDER:FindFirstChild("Bishop Lv.80") then KillEnemy("Bishop Lv.80") end
-        if LIVES_FOLDER:FindFirstChild("Rook Lv.80") then KillEnemy("Rook Lv.80") end
-    end
-
-elseif QuestDropdown.Value == "AGITO" then
-    local AgitoStatus = Check_Agito_Quest_Active() 
-    if _G.AutoQuest then
-        if AgitoStatus == "COMPLETED" or AgitoStatus == "NONE" then Farm_Agito_Quest() end
-        if Check_Agito_Quest_Active() == "ACTIVE" then
-            if not _G.AutoFarm then break end
-            Summon_Agito(); if not _G.AutoFarm then break end
-            KillEnemy("Agito Lv.90") 
-            if _G.AutoQuest and _G.AutoFarm then WaitForQuestCompletion("Agito") end
-        end
-    else
-        if not _G.AutoFarm then break end
-        KillEnemy("Agito Lv.90") 
-    end
-elseif QuestDropdown.Value == "Miner Goon" then
-                    local MaxQuests = 5
-                    local MaxExchanges = 3
-                    if not ExchangeCount then ExchangeCount = 0 end 
+                if QuestVal == "quest 1-40" then
+                    if _G.AutoQuest then Farm_Yui_Quest() end
+                    if not _G.AutoQuestFarm then break end; KillEnemy("Dragon User Lv.7"); task.wait(ATTACK_SPEED)
+                    if not _G.AutoQuestFarm then break end; KillEnemy("Crab User Lv.10"); task.wait(ATTACK_SPEED)
+                    if not _G.AutoQuestFarm then break end; KillEnemy("Bat User Lv.12")
+                    if _G.AutoQuest and _G.AutoQuestFarm then WaitForQuestCompletion("Dragon's Alliance") end
                     
+                elseif QuestVal == "Mummy" then
+                    local Status = GetWindQuestStatus()
+                    if Status == "COMPLETED" or Status == "NONE" then if _G.AutoQuest then Accept_Wind_Quest() end
+                    elseif Status == "ACTIVE" then if not _G.AutoQuestFarm then break end; KillEnemy("Mummy Lv.40") end
+                    
+                elseif QuestVal == "Quest 40-80" then
+                    local Status = GetMalcomQuestStatus()
+                    if Status == "COMPLETED" or Status == "NONE" then if _G.AutoQuest then Accept_Malcom_Quest() end
+                    elseif Status == "ACTIVE" then
+                        if not _G.AutoQuestFarm then break end
+                        local M1 = LIVES_FOLDER:FindFirstChild("Dark Dragon User Lv.40"); local M2 = LIVES_FOLDER:FindFirstChild("Gazelle User Lv.45")
+                        if M1 then KillEnemy("Dark Dragon User Lv.40") elseif M2 then KillEnemy("Gazelle User Lv.45") end
+                    end
+                    
+                elseif QuestVal == "Rook&Bishop" then
+                    local Status = GetRookBishopQuestStatus()
+                    if Status == "COMPLETED" or Status == "NONE" then if _G.AutoQuest then Accept_RookBishop_Quest() end
+                    elseif Status == "ACTIVE" then
+                        if not _G.AutoQuestFarm then break end; Summon_RookBishop()
+                        if not _G.AutoQuestFarm then break end
+                        if LIVES_FOLDER:FindFirstChild("Bishop Lv.80") then KillEnemy("Bishop Lv.80") end
+                        if LIVES_FOLDER:FindFirstChild("Rook Lv.80") then KillEnemy("Rook Lv.80") end
+                    end
+                    
+                elseif QuestVal == "AGITO" then
+                    local AgitoStatus = Check_Agito_Quest_Active()
+                    if _G.AutoQuest then
+                        if AgitoStatus == "COMPLETED" or AgitoStatus == "NONE" then Farm_Agito_Quest() end
+                        if Check_Agito_Quest_Active() == "ACTIVE" then
+                            if not _G.AutoQuestFarm then break end; Summon_Agito()
+                            if not _G.AutoQuestFarm then break end; KillEnemy("Agito Lv.90")
+                            if _G.AutoQuest and _G.AutoQuestFarm then WaitForQuestCompletion("Agito") end
+                        end
+                    else if not _G.AutoQuestFarm then break end; KillEnemy("Agito Lv.90") end
+                    
+                elseif QuestVal == "Miner Goon" then
                     if CurrentState == "FARMING" then
-                        -- 1. PRIORITY: CHECK EXCHANGES (3/3 -> Craft)
-                        if ExchangeCount >= MaxExchanges then
-                            print("🎯 3 Exchanges done! Going to craft...")
+                        if ExchangeCount >= 3 then
                             CurrentState = "CRAFTING"
-                            Fluent:Notify({Title = "Crafting", Content = "3 exchanges complete! Starting craft...", Duration = 3})
-                            task.wait(1)
+                            Fluent:Notify({Title = "Crafting", Content = "3 exchanges complete!", Duration = 3}); task.wait(1)
                             RunCraftingRoutine()
-                            
-                            -- Reset after crafting
-                            ExchangeCount = 0
-                            QuestCount = 0
-                            
-                        -- 2. QUEST 5/5 -> GO EXCHANGE
+                            ExchangeCount = 0; QuestCount = 0
                         elseif QuestCount >= MaxQuests then
-                            print("💎 Quests done ("..QuestCount.."), Doing Exchange #" .. (ExchangeCount + 1))
-                            
                             local NPC = Workspace.NPC:FindFirstChild("LeeTheMiner")
                             if NPC then
                                 local Root = GetRootPart()
                                 if Root then
-                                    -- Go to NPC
                                     TweenTo(NPC.HumanoidRootPart.CFrame * CFrame.new(0,0,3))
                                     fireclickdetector(NPC.ClickDetector); task.wait(1)
-                                    
-                                    -- 1. Select Exchange
-                                    DIALOGUE_EVENT:FireServer({Choice = "[ Exchange ]"}) 
-                                    task.wait(0.5)
-                                    
-                                    -- 2. Confirm Exchange (ADDED THIS)
-                                    DIALOGUE_EVENT:FireServer({Choice = "[ Confirm ]"})
-                                    task.wait(0.5)
-                                    
-                                    -- 3. Exit
+                                    DIALOGUE_EVENT:FireServer({Choice = "[ Exchange ]"}); task.wait(0.5)
+                                    DIALOGUE_EVENT:FireServer({Choice = "[ Confirm ]"}); task.wait(0.5)
                                     DIALOGUE_EVENT:FireServer({Exit = true})
-                                    
-                                    -- Update Counters
-                                    ExchangeCount = ExchangeCount + 1
-                                    QuestCount = 0
+                                    ExchangeCount = ExchangeCount + 1; QuestCount = 0
                                     Fluent:Notify({Title = "Exchange", Content = "Done " .. ExchangeCount .. "/3", Duration = 3})
                                 end
-                            else
-                                Fluent:Notify({Title = "Error", Content = "Miner NPC not found!", Duration = 3})
                             end
-                            
                         else
-                            -- 3. FARM QUESTS (Normal Logic)
-                            if not WarpedToMine then
-                                Fluent:Notify({Title = "Status", Content = "Warping to Mine...", Duration = 3})
-                                for i=1,5 do WarpTo("Mine's Field"); task.wait(0.2) end
-                                task.wait(3); WarpedToMine = true
-                            end
-                            
+                            if not WarpedToMine then Fluent:Notify({Title = "Status", Content = "Warping to Mine...", Duration = 3}); for i=1,5 do WarpTo("Mine's Field"); task.wait(0.2) end; task.wait(3); WarpedToMine = true end
                             if _G.AutoQuest then
                                 local Status = GetMinerGoonQuestStatus()
-                                if Status == "COMPLETED" or Status == "NONE" then 
-                                    Accept_MinerGoon_Quest() 
-                                    -- Note: Accept function should increment QuestCount when turning in!
-                                elseif Status == "ACTIVE" then 
-                                    if not _G.AutoFarm then break end
-                                    KillEnemy("Miner Goon Lv.50") 
-                                end
-                            else 
-                                KillEnemy("Miner Goon Lv.50") 
-                            end
+                                if Status == "COMPLETED" or Status == "NONE" then Accept_MinerGoon_Quest()
+                                elseif Status == "ACTIVE" then if not _G.AutoQuestFarm then break end; KillEnemy("Miner Goon Lv.50") end
+                            else KillEnemy("Miner Goon Lv.50") end
                         end
-                        
-                    elseif CurrentState == "CRAFTING" then
-                        task.wait(1)
-                    end
-
-elseif QuestDropdown.Value == "DAGUBA (Auto Dungeon)" then
-    local Status = GetDagubaQuestStatus()
-    
-    if Status == "COMPLETED" then
-        CancelMovement()
-        Fluent:Notify({Title = "Daguba", Content = "Quest Completed! Waiting 20s...", Duration = 5})
-        for i = 1, 20 do if not _G.AutoFarm then break end task.wait(1) end
-        if _G.AutoFarm then Accept_Daguba_Quest() end
-        
-    elseif IsInAncientDungeon() then
-        Run_Daguba_Sequence()
-        task.wait(2)
-        
-    elseif Status == "NONE" then
-        Accept_Daguba_Quest()
-        
-    elseif Status == "ACTIVE" then
-        if not IsEnteringDungeon then
-            IsEnteringDungeon = true
-            RIDER_TRIAL_EVENT:FireServer("Trial of Ancient") 
-            
-            local T = 0
-            repeat 
-                task.wait(1)
-                T = T + 1
-            until IsInAncientDungeon() or T > 10 or not _G.AutoFarm
-            
-            IsEnteringDungeon = false
-        end
-        task.wait(2)
-    end
-
-elseif QuestDropdown.Value == "Zyga" then
-    RunZygaLogic()
--- ✅ HALLOWEEN CHEST AUTO FARM (IMPROVED)
-elseif QuestDropdown.Value == "Halloween Chest" then
-    -- Define chest scan positions
-    local CHEST_SCAN_POSITIONS = {
-        CFrame.new(-866.59, 25.52, -288.02),
-        CFrame.new(-1088.06, 2.65, -644.51),
-        CFrame.new(-1403.94, 0.12, 497.61)
-    }
-    
-    -- Helper function to find Halloween Chest
-    local function FindHalloweenChest()
-        if Workspace:FindFirstChild("KeyItem") then
-            local Chest = Workspace.KeyItem:FindFirstChild("Halloween Chest")
-            if Chest then
-                return Chest
-            end
-        end
-        return nil
-    end
-    
-    -- Helper function to press chest
-    local function PressHalloweenChest()
-        local Chest = FindHalloweenChest()
-        
-        if not Chest then
-            warn("⚠️ Halloween Chest not found!")
-            return false
-        end
-        
-        -- Get the chest's BasePart
-        local ChestPart = Chest:IsA("BasePart") and Chest or Chest:FindFirstChildWhichIsA("BasePart", true)
-        
-        if not ChestPart then
-            warn("⚠️ Halloween Chest part not found!")
-            return false
-        end
-        
-        -- Tween to chest
-        Fluent:Notify({Title = "Halloween", Content = "Opening chest...", Duration = 2})
-        TweenTo(ChestPart.CFrame * CFrame.new(0, 0, 3))
-        task.wait(0.5)
-        
-        -- Find and press ProximityPrompt
-        local Prompt = Chest:FindFirstChildWhichIsA("ProximityPrompt", true)
-        
-        if Prompt then
-            Press_E_Virtual(Prompt, 2)
-            task.wait(2)
-            return true
-        else
-            warn("⚠️ Halloween Chest ProximityPrompt not found!")
-            return false
-        end
-    end
-    
-    -- ✅ NEW: Helper function to open Currency Crate
-    local function OpenCurrencyCrate()
-        local success, result = pcall(function()
-            local Event = game:GetService("ReplicatedStorage").Remote.Function.InventoryFunction
-            return Event:InvokeServer("Currency Crate I")
-        end)
-        
-        if success then
-            Fluent:Notify({Title = "Halloween", Content = "Opened Currency Crate!", Duration = 2})
-            print("✅ Currency Crate opened successfully")
-            return true
-        else
-            warn("⚠️ Failed to open Currency Crate:", result)
-            return false
-        end
-    end
-    
-    -- ✅ NEW: Improved function to detect if all Hollowed Goons are dead
-    local function AreAllHollowedGoonsDead()
-        -- Check if ANY Hollowed Goon exists in Lives folder
-        for _, mob in pairs(LIVES_FOLDER:GetChildren()) do
-            if mob.Name == "Hollowed Goon Lv.80" then
-                -- Found one, check if it's alive
-                local Humanoid = mob:FindFirstChild("Humanoid")
-                if Humanoid and Humanoid.Health > 0 then
-                    return false -- At least one is still alive
-                end
-            end
-        end
-        
-        -- No alive Hollowed Goons found
-        return true
-    end
-    
-    -- ✅ NEW: Function to wait for enemies to spawn
-    local function WaitForEnemySpawn()
-        Fluent:Notify({Title = "Halloween", Content = "Waiting for enemies to spawn...", Duration = 2})
-        
-        local StartTime = tick()
-        local MaxWaitTime = 5
-        
-        while (tick() - StartTime) < MaxWaitTime and _G.AutoFarm do
-            if LIVES_FOLDER:FindFirstChild("Hollowed Goon Lv.80") then
-                Fluent:Notify({Title = "Halloween", Content = "Enemies spawned!", Duration = 2})
-                return true
-            end
-            task.wait(0.3)
-        end
-        
-        -- No enemies spawned - probably already got reward
-        return false
-    end
-    
-    -- Helper function to scan for chest at both positions
-    local function ScanForChest()
-        Fluent:Notify({Title = "Halloween", Content = "Scanning for chest...", Duration = 2})
-        
-        for i, ScanPos in ipairs(CHEST_SCAN_POSITIONS) do
-            if not _G.AutoFarm then return nil end
-            
-            -- Go to scan position
-            TweenTo(ScanPos)
-            task.wait(1)
-            
-            -- Check if chest is nearby
-            local Chest = FindHalloweenChest()
-            if Chest then
-                local ChestPart = Chest:IsA("BasePart") and Chest or Chest:FindFirstChildWhichIsA("BasePart", true)
-                if ChestPart then
-                    local Distance = (GetRootPart().Position - ChestPart.Position).Magnitude
-                    if Distance < 200 then -- Chest is nearby
-                        Fluent:Notify({Title = "Halloween", Content = "Chest found at position " .. i .. "!", Duration = 2})
-                        return Chest
-                    end
-                end
-            end
-        end
-        
-        return nil
-    end
-    
-    -- ✅ IMPROVED: Kill all Hollowed Goons until none remain
-    local function KillAllHollowedGoons()
-        Fluent:Notify({Title = "Halloween", Content = "Starting combat...", Duration = 2})
-        
-        local MaxLoops = 50 -- Safety limit to prevent infinite loop
-        local LoopCount = 0
-        
-        while _G.AutoFarm and LoopCount < MaxLoops do
-            LoopCount = LoopCount + 1
-            
-            -- Check if all enemies are dead
-            if AreAllHollowedGoonsDead() then
-                Fluent:Notify({Title = "Halloween", Content = "All enemies defeated!", Duration = 3})
-                print("✅ All Hollowed Goons are dead!")
-                break
-            end
-            
-            -- Still have enemies, find and kill one
-            local Enemy = nil
-            
-            -- Find any alive Hollowed Goon
-            for _, mob in pairs(LIVES_FOLDER:GetChildren()) do
-                if mob.Name == "Hollowed Goon Lv.80" then
-                    local Humanoid = mob:FindFirstChild("Humanoid")
-                    if Humanoid and Humanoid.Health > 0 then
-                        Enemy = mob
-                        break
-                    end
-                end
-            end
-            
-            if Enemy then
-                -- Found alive enemy, kill it
-                Fluent:Notify({Title = "Halloween", Content = "Enemy detected! Attacking...", Duration = 1})
-                KillEnemy("Hollowed Goon Lv.80")
-                task.wait(0.5) -- Brief wait before checking again
-            else
-                -- No enemy found but function says they're not all dead?
-                -- Wait a moment and check again
-                task.wait(0.5)
-            end
-        end
-        
-        if LoopCount >= MaxLoops then
-            warn("⚠️ Kill loop reached safety limit!")
-        end
-        
-        task.wait(1)
-    end
-    
-    -- Main Halloween Chest Loop
-    if not _G.AutoFarm then break end
-    
-    -- Step 1: Scan for chest at both positions
-    local FoundChest = ScanForChest()
-    
-    if not FoundChest then
-        -- Chest not found at either position, try direct approach
-        Fluent:Notify({Title = "Halloween", Content = "Chest not found, trying direct...", Duration = 2})
-        FoundChest = FindHalloweenChest()
-    end
-    
-    if not FoundChest then
-        warn("⚠️ Halloween Chest not found anywhere!")
-        Fluent:Notify({Title = "Error", Content = "Halloween Chest not found!", Duration = 5})
-        task.wait(5)
-    else
-        -- Step 2: Press the chest
-        local ChestPressed = PressHalloweenChest()
-        
-        if ChestPressed then
-            -- Step 3: Wait for enemies to spawn (or detect already got reward)
-            local EnemiesSpawned = WaitForEnemySpawn()
-            
-            if not EnemiesSpawned then
-                -- No enemies spawned = already got reward
-                Fluent:Notify({Title = "Halloween", Content = "Already received reward today!", Duration = 3})
-                
-                -- ✅ Open Currency Crate anyway
-                task.wait(1)
-                OpenCurrencyCrate()
-                
-                task.wait(10)
-            else
-                -- Step 4: Kill all spawned Hollowed Goons
-                task.wait(1) -- Brief wait for all enemies to spawn
-                KillAllHollowedGoons()
-                
-                -- Step 5: Verify all are dead before proceeding
-                if not AreAllHollowedGoonsDead() then
-                    warn("⚠️ Warning: Some enemies may still be alive!")
-                    task.wait(3) -- Extra wait
-                end
-                
-                -- Step 6: Return to chest and press again to collect reward
-                if not _G.AutoFarm then break end
-                
-                Fluent:Notify({Title = "Halloween", Content = "Returning to chest for reward...", Duration = 2})
-                
-                local FinalChest = FindHalloweenChest()
-                if FinalChest then
-                    PressHalloweenChest()
-                    task.wait(2)
+                    elseif CurrentState == "CRAFTING" then end
                     
-                    -- ✅ Open Currency Crate after collecting reward
-                    OpenCurrencyCrate()
-                    
-                    Fluent:Notify({Title = "Halloween", Content = "Cycle complete! Restarting...", Duration = 3})
-                    task.wait(3)
-                else
-                    warn("⚠️ Could not find chest after killing enemies!")
-                    task.wait(5)
-                end
-            end
-        end
-    end
-elseif QuestDropdown.Value == "SOUL FRAG" then
-                    Farm_Soul_Frag_Quest()
-elseif QuestDropdown.Value == "ARK + HALLOWEEN CHEST" then
-                    -- // 1. CHECK ARK QUEST // --
+                elseif QuestVal == "ARK + HALLOWEEN CHEST" then
                     local ArkStatus = GetARKQuestStatus()
                     
-                    -- Local helper to open cache multiple times
                     local function OpenProgrise(times)
-                        for i = 1, times do
-                            pcall(function() 
-                                game:GetService("ReplicatedStorage").Remote.Function.InventoryFunction:InvokeServer("Progrise Cache")
-                            end)
+                        for i=1, times do
+                            pcall(function() game:GetService("ReplicatedStorage").Remote.Function.InventoryFunction:InvokeServer("Progrise Cache") end)
                             task.wait(0.2)
                         end
-                        Fluent:Notify({Title = "Cache", Content = "Opened Progrise Cache x" .. times, Duration = 2})
+                        Fluent:Notify({Title = "Cache", Content = "Opened Progrise x" .. times, Duration = 2})
                     end
 
-                    if ArkStatus == "NONE" then 
-                        AcceptARKQuest() 
-                        
+                    if ArkStatus == "NONE" then AcceptARKQuest() 
                     elseif ArkStatus == "ACTIVE" then
-                        -- Hunt ARK Boss
                         local Enemy = LIVES_FOLDER:FindFirstChild("Possessed Rider Lv.90")
-                        
-                        -- If Boss found, Kill it
                         if Enemy and Enemy:FindFirstChild("Humanoid") and Enemy.Humanoid.Health > 0 then 
-                            Fluent:Notify({Title = "ARK", Content = "Fighting Possessed Rider...", Duration = 2})
+                            Fluent:Notify({Title = "ARK", Content = "Fighting Boss...", Duration = 2})
                             KillEnemy("Possessed Rider Lv.90")
-                            
-                            -- OPEN CACHE 2x AFTER KILL
                             OpenProgrise(2)
                         else
-                            -- If not found, Scan spawn locations
-                            Fluent:Notify({Title = "ARK", Content = "Scanning for Boss...", Duration = 1})
+                            Fluent:Notify({Title = "ARK", Content = "Scanning...", Duration = 1})
                             for _, pos in ipairs(SPAWN_POSITIONS) do
-                                if not _G.AutoFarm then break end
-                                TweenTo(pos); task.wait(1)
+                                if not _G.AutoQuestFarm then break end; TweenTo(pos); task.wait(1)
                                 local E = LIVES_FOLDER:FindFirstChild("Possessed Rider Lv.90")
                                 if E and E:FindFirstChild("Humanoid") and E.Humanoid.Health > 0 then 
                                     KillEnemy("Possessed Rider Lv.90")
-                                    
-                                    -- OPEN CACHE 2x AFTER KILL
                                     OpenProgrise(2)
                                     break 
                                 end
                             end
                         end
-                        
                     elseif ArkStatus == "COMPLETED" then 
-                        -- Turn in Quest
                         TurnInARKQuest()
-                        
-                        -- OPEN CACHE 2x AFTER TURN IN
                         OpenProgrise(2)
                         
-                        -- // 2. SWITCH TO HALLOWEEN CHEST // --
-                        if _G.AutoFarm then
-                            Fluent:Notify({Title = "Switch", Content = "Going to Halloween Chest...", Duration = 3})
-                            task.wait(1)
-                            
-                            -- Find Chest
+                        if _G.AutoQuestFarm then
+                            Fluent:Notify({Title = "Switch", Content = "Chest...", Duration = 3}); task.wait(1)
                             local Chest = ScanForChest()
                             if not Chest then Chest = FindHalloweenChest() end
-                            
                             if Chest then
-                                -- 1. Press Chest to Summon Mobs
                                 local Opened = PressHalloweenChest()
-                                
                                 if Opened then
-                                    -- 2. Wait for Mobs & Kill
                                     local EnemiesSpawned = WaitForEnemySpawn()
-                                    if EnemiesSpawned then
-                                        KillAllHollowedGoons()
-                                        task.wait(1)
-                                        
-                                        -- 3. Press Chest again for Reward
-                                        PressHalloweenChest()
-                                        
-                                        -- 4. Open Currency Crate
-                                        OpenCurrencyCrate()
-                                        
-                                        Fluent:Notify({Title = "Cycle Complete", Content = "Restarting loop...", Duration = 3})
-                                    else
-                                        -- If no enemies spawned, try opening crate anyway (maybe lag)
-                                        OpenCurrencyCrate()
-                                    end
+                                    if EnemiesSpawned then KillAllHollowedGoons(); task.wait(1); PressHalloweenChest(); OpenCurrencyCrate()
+                                    else OpenCurrencyCrate() end
                                 end
-                            else
-                                Fluent:Notify({Title = "Skip", Content = "Halloween Chest not found!", Duration = 2})
-                            end
+                            else Fluent:Notify({Title = "Skip", Content = "Chest not found!", Duration = 2}) end
                         end
                     end
+                
+                elseif QuestVal == "SOUL FRAG" then
+                    Farm_Soul_Frag_Quest()
+                end
+                
+                task.wait(1)
+            end
+            _G.AutoFarm = false -- Turn off global flag when loop ends
+        end)
+    end
+end)
 
-elseif QuestDropdown.Value == "Trial of Splash" then
-                    -- 1. CHECK IF IN DUNGEON (Direct Check)
-                    local DungeonVal = game.Players.LocalPlayer:FindFirstChild("Dungeon")
-                    local InSplash = (DungeonVal and DungeonVal.Value == "Trial of Splash")
-                    
-                    if not InSplash then
+
+-- // 2. DUNGEON FARM LOGIC // --
+DungeonToggle:OnChanged(function()
+    _G.AutoDungeonFarm = Options.DungeonFarm.Value
+    
+    if _G.AutoDungeonFarm then
+        -- Disable others
+        if _G.AutoBoss then Options.AutoBoss:SetValue(false) end
+        if Options.QuestFarm.Value then Options.QuestFarm:SetValue(false) end
+        
+        _G.AutoFarm = true -- Global flag
+        HenshinDone = false; EquipDone = false; _G.IsTransforming = false
+        
+        task.spawn(function()
+            while _G.AutoDungeonFarm do
+                local DungeonVal = Options.DungeonSelect.Value
+                Fluent:Notify({Title = "Dungeon Farm", Content = "Running: " .. DungeonVal, Duration = 1})
+                
+                while _G.IsTransforming do task.wait(0.5) end
+                
+                if DungeonVal == "DAGUBA (Auto Dungeon)" then
+                    local Status = GetDagubaQuestStatus()
+                    if Status == "COMPLETED" then
+                        CancelMovement(); Fluent:Notify({Title = "Daguba", Content = "Quest Completed!", Duration = 5})
+                        for i = 1, 20 do if not _G.AutoDungeonFarm then break end task.wait(1) end
+                        if _G.AutoDungeonFarm then Accept_Daguba_Quest() end
+                    elseif IsInDungeon("Trial of Ancient") then Run_Daguba_Sequence(); task.wait(2)
+                    elseif Status == "NONE" then Accept_Daguba_Quest()
+                    elseif Status == "ACTIVE" then
                         if not IsEnteringDungeon then
                             IsEnteringDungeon = true
-                            -- Fire Entry Remote
-                            game:GetService("ReplicatedStorage").Remote.Event.RiderTrial:FireServer("Trial of Splash")
-                            
+                            RIDER_TRIAL_EVENT:FireServer("Trial of Ancient") 
+                            local T = 0; repeat task.wait(1); T = T + 1 until IsInDungeon("Trial of Ancient") or T > 10 or not _G.AutoDungeonFarm
+                            IsEnteringDungeon = false
+                        end
+                        task.wait(2)
+                    end
+                    
+                elseif DungeonVal == "Trial of Splash" then
+                    -- 1. Check if inside
+                    if not IsInDungeon("Trial of Splash") then
+                        if not IsEnteringDungeon then
+                            IsEnteringDungeon = true
+                            RIDER_TRIAL_EVENT:FireServer("Trial of Splash")
                             local T = 0
                             repeat 
                                 task.wait(1)
                                 T = T + 1
-                                local D = game.Players.LocalPlayer:FindFirstChild("Dungeon")
-                            until (D and D.Value == "Trial of Splash") or T > 10 or not _G.AutoFarm
-                            
+                            until IsInDungeon("Trial of Splash") or T > 10 or not _G.AutoDungeonFarm
                             IsEnteringDungeon = false
                         end
                         task.wait(2)
                     else
-                        -- 2. COMBAT LOGIC
+                        -- 2. Combat Logic
                         local Boss = LIVES_FOLDER:FindFirstChild("Itomakeiei Lv.90")
-                        
-                        -- Check Priority (Minions first)
                         local Minion = nil
+                        
+                        -- Priority Check
                         for _, mob in pairs(LIVES_FOLDER:GetChildren()) do
-                            if mob.Name == "Goon Lv.45" and mob:FindFirstChild("Humanoid") and mob.Humanoid.Health > 0 then
-                                Minion = mob
-                                break
+                            if mob.Name == "Goon Lv.45" and mob:FindFirstChild("Humanoid") and mob.Humanoid.Health > 0 then 
+                                Minion = mob; break 
                             end
                         end
                         
@@ -2441,22 +1945,17 @@ elseif QuestDropdown.Value == "Trial of Splash" then
                             if Root and Boss:FindFirstChild("HumanoidRootPart") then
                                 TweenTo(Boss.HumanoidRootPart.CFrame * CFrame.new(0, 2, _G.AttackDist), 60)
                                 
-                                while _G.AutoFarm and Boss.Parent and Boss.Humanoid.Health > 0 do
-                                    -- Break if minion spawns
+                                while _G.AutoDungeonFarm and Boss.Parent and Boss.Humanoid.Health > 0 do
                                     if LIVES_FOLDER:FindFirstChild("Goon Lv.45") then break end
                                     
-                                    -- ✅ DETECT BLOCKING (Wait if blocking)
-                                    if Boss:FindFirstChild("SpecialBlock") then
+                                    if Boss:FindFirstChild("SpecialBlock") then 
                                         task.wait(0.1) 
                                     else
-                                        -- Safe to attack
-                                        if _G.IsTransforming then 
-                                            task.wait(0.2)
+                                        if _G.IsTransforming then task.wait(0.2)
                                         else
                                             local B_CF = Boss.HumanoidRootPart.CFrame
                                             Root.CFrame = B_CF * CFrame.new(0, HEIGHT_OFFSET, _G.AttackDist)
                                             Root.Velocity = Vector3.zero
-                                            
                                             if _G.AutoCombo then RunCombo(Boss) else DoCombat() end
                                         end
                                         task.wait(ATTACK_SPEED)
@@ -2468,190 +1967,26 @@ elseif QuestDropdown.Value == "Trial of Splash" then
                              task.wait(1)
                         end
                     end
--- ✅ IMPROVED ARK QUEST WITH FULL LOGIC (keep this as is)
-elseif QuestDropdown.Value == "ARK" then
-    -- Define positions
-    local ARK_NPC_POSITION = CFrame.new(-1403.94, 0.12, 497.61)
-    local SPAWN_POSITIONS = {
-        CFrame.new(-866.59, 25.52, -288.02),
-        CFrame.new(-1088.06, 2.65, -644.51),
-        CFrame.new(-1403.94, 0.12, 497.61)
-    }
-    
-    -- Helper function to check quest status
-    local function GetARKQuestStatus()
-        local success, result = pcall(function()
-            local GUI = LocalPlayer.PlayerGui.Main.QuestAlertFrame.QuestGUI
-            local QuestFrame = GUI:FindFirstChild("Desire Games")
-            
-            if QuestFrame and QuestFrame:FindFirstChild("TextLabel") then
-                local TextLabel = QuestFrame.TextLabel
-                if TextLabel.Visible then
-                    -- Quest is active - check if completed
-                    if string.find(TextLabel.Text, "Completed") then
-                        return "COMPLETED"
-                    else
-                        return "ACTIVE"
-                    end
+                    
+                elseif DungeonVal == "Zyga" then
+                    RunZygaLogic()
                 end
+                
+                task.wait(1)
             end
-            return "NONE"
-        end)
-        
-        return success and result or "NONE"
-    end
-    
-    -- Helper function to accept ARK quest
-    local function AcceptARKQuest()
-        Fluent:Notify({Title = "ARK Quest", Content = "Accepting quest...", Duration = 2})
-        
-        -- Step 1: Go to NPC position
-        TweenTo(ARK_NPC_POSITION)
-        task.wait(1)
-        
-        -- Step 2: Find and interact with NPC
-        local ARKNpc = Workspace.NPC:FindFirstChild("ARKReplicator")
-        if ARKNpc then
-            local ARKPart = ARKNpc.PrimaryPart or ARKNpc:FindFirstChild("ARK Replicator") or ARKNpc:FindFirstChildWhichIsA("BasePart")
-            
-            if ARKPart then
-                TweenTo(ARKPart.CFrame * CFrame.new(0, 0, 3))
-                task.wait(0.5)
-                
-                -- Click NPC
-                pcall(function()
-                    fireclickdetector(ARKNpc.ClickDetector)
-                end)
-                task.wait(1)
-                
-                -- Send dialogue to get quest
-                pcall(function()
-                    DIALOGUE_EVENT:FireServer({Choice = "[ Desire Games ]"})
-                end)
-                task.wait(0.5)
-                
-                pcall(function()
-                    DIALOGUE_EVENT:FireServer({Exit = true})
-                end)
-                task.wait(1)
-                
-                Fluent:Notify({Title = "ARK Quest", Content = "Quest accepted!", Duration = 2})
-            else
-                warn("⚠️ ARKReplicator part not found!")
-            end
-        else
-            warn("⚠️ ARKReplicator NPC not found!")
-        end
-    end
-    
-    -- Helper function to turn in completed quest
-    local function TurnInARKQuest()
-        Fluent:Notify({Title = "ARK Quest", Content = "Quest completed! Turning in...", Duration = 2})
-        
-        -- Step 1: Return to NPC position
-        TweenTo(ARK_NPC_POSITION)
-        task.wait(1)
-        
-        -- Step 2: Find and interact with NPC
-        local ARKNpc = Workspace.NPC:FindFirstChild("ARKReplicator")
-        if ARKNpc then
-            local ARKPart = ARKNpc.PrimaryPart or ARKNpc:FindFirstChild("ARK Replicator") or ARKNpc:FindFirstChildWhichIsA("BasePart")
-            
-            if ARKPart then
-                TweenTo(ARKPart.CFrame * CFrame.new(0, 0, 3))
-                task.wait(0.5)
-                
-                -- Click NPC
-                pcall(function()
-                    fireclickdetector(ARKNpc.ClickDetector)
-                end)
-                task.wait(1)
-                
-                -- Turn in quest
-                pcall(function()
-                    DIALOGUE_EVENT:FireServer({Choice = "Completed it."})
-                end)
-                task.wait(0.5)
-                
-                pcall(function()
-                    DIALOGUE_EVENT:FireServer({Exit = true})
-                end)
-                task.wait(1)
-                
-                Fluent:Notify({Title = "ARK Quest", Content = "Quest turned in! Restarting...", Duration = 2})
-            end
-        end
-    end
-    
-    -- Main ARK Quest Logic
-    local Status = GetARKQuestStatus()
-    
-    if Status == "NONE" then
-        -- No quest active, go accept it
-        AcceptARKQuest()
-        
-    elseif Status == "COMPLETED" then
-        -- Quest completed, turn it in
-        TurnInARKQuest()
-        
-    elseif Status == "ACTIVE" then
-        -- Quest active, go kill the enemy
-        if not _G.AutoFarm then break end
-        
-        -- First, check if enemy already spawned
-        local Enemy = LIVES_FOLDER:FindFirstChild("Possessed Rider Lv.90")
-        
-        if Enemy and Enemy:FindFirstChild("HumanoidRootPart") and Enemy:FindFirstChild("Humanoid") and Enemy.Humanoid.Health > 0 then
-            -- Enemy found! Go directly to it
-            Fluent:Notify({Title = "ARK Quest", Content = "Enemy found! Attacking...", Duration = 2})
-            KillEnemy("Possessed Rider Lv.90")
-        else
-            -- Enemy not found, check spawn positions
-            Fluent:Notify({Title = "ARK Quest", Content = "Searching for enemy...", Duration = 2})
-            
-            for i, SpawnPos in ipairs(SPAWN_POSITIONS) do
-                if not _G.AutoFarm then break end
-                
-                -- Go to spawn position
-                TweenTo(SpawnPos)
-                task.wait(1)
-                
-                -- Check if enemy spawned
-                Enemy = LIVES_FOLDER:FindFirstChild("Possessed Rider Lv.90")
-                
-                if Enemy and Enemy:FindFirstChild("HumanoidRootPart") and Enemy:FindFirstChild("Humanoid") and Enemy.Humanoid.Health > 0 then
-                    -- Found the enemy!
-                    Fluent:Notify({Title = "ARK Quest", Content = "Enemy spotted! Attacking...", Duration = 2})
-                    KillEnemy("Possessed Rider Lv.90")
-                    break
-                end
-            end
-            
-            -- If still not found after checking all positions, just kill normally
-            if not _G.AutoFarm then break end
-            KillEnemy("Possessed Rider Lv.90")
-        end
-    end
-
-end -- ✅ CLOSE the main quest selection
-
-task.wait(1)
-
-task.wait(1) -- ✅ ADD THIS LINE (was missing!)
-
-            end  -- ✅ Close task.spawn function
+            _G.AutoFarm = false -- Turn off global flag
         end)
     end
-end)  -- ✅ Close FarmToggle:OnChanged
+end)
 
 SaveManager:SetLibrary(Fluent)
 InterfaceManager:SetLibrary(Fluent)
 SaveManager:IgnoreThemeSettings()
 InterfaceManager:SetFolder("FluentScriptHub")
 SaveManager:SetFolder("FluentScriptHub/RiderWorld")
-InterfaceManager:BuildInterfaceSection(Tabs. Settings)
+InterfaceManager:BuildInterfaceSection(Tabs.Settings)
 SaveManager:BuildConfigSection(Tabs.Settings)
 
 Window:SelectTab(1)
-Fluent:Notify({Title = "Script Loaded", Content = " Open Progrise", Duration = 5})
+Fluent:Notify({Title = "Script Loaded", Content = "SEPARATED TABS + ALL FIXES", Duration = 5})
 SaveManager:LoadAutoloadConfig()
